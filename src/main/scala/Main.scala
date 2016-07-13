@@ -83,7 +83,7 @@ object Main extends App {
         |push temp 6
         |add
       """.stripMargin
-    val vm = new HackVM
+    val vm = new HackVM()
     vm.process(p.run(s))
   }
 
