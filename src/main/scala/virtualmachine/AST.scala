@@ -18,8 +18,8 @@ object AST {
   case class  CFunction(label: String, argc: Short) extends FunctionCommand
   case object CReturn                               extends FunctionCommand
 
-  case class CPush(segment: String, index: Word) extends MemoryCommand
-  case class CPop(segment: String, index: Word)  extends MemoryCommand
+  case class Push(segment: String, index: Word) extends MemoryCommand
+  case class Pop(segment: String, index: Word)  extends MemoryCommand
 
   case object Add extends ArithmeticCommand
   case object Sub extends ArithmeticCommand

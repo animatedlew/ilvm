@@ -1,7 +1,9 @@
 package virtualmachine
 
 import virtualmachine.AST._
-import annotation.tailrec
+
+import scala.annotation.tailrec
+import scala.language.postfixOps
 
 class HackVM {
 
@@ -27,7 +29,20 @@ class HackVM {
   var RAM  = new Array[Word](16384 + 8192 + 1) // 16k + 8k + 1reg
   var ROM  = new Array[Word](32768) // 32k RESERVED
 
-  object Writer { def emit(s: String) = print(s"${Console.CYAN}$s") }
+  var guid = 0
+
+  object Writer {
+    def emit(s: String) = print(s"${Console.CYAN}$s")
+    def storeD() = {
+      Writer.emit(
+        s"""
+           |    @R5
+           |    M=D     // store y
+
+        """ stripMargin
+      )
+    }
+  }
 
   RAM(0) = 256
   RAM(1) = 300
@@ -124,7 +139,7 @@ class HackVM {
     )
     16
   }
-  def temp   = {
+  def temp = {
     Writer.emit(
     """
     @5
@@ -142,7 +157,7 @@ class HackVM {
     //======= pop() =======//
     @SP
     AM=M-1  // dec stack/memory pointer
-    D=M     // return value in D
+    D=M     // return value in 'D'
     """
     )
     sp(sp - 1); RAM(sp)
@@ -154,7 +169,7 @@ class HackVM {
     //======= push(D) =======//
     @SP
     A=M     // access pointer
-    M=D     // store value in stack @ A
+    M=D     // store value in stack @ 'A'
     @SP
     M=M+1   // inc stack pointer
     """
@@ -170,7 +185,7 @@ class HackVM {
     @R5     // used for bp
     D=M
     @$index
-    D=D+A   // A register used for index
+    D=D+A   // 'A' register used for index
     @R5     // overwrite bp
     A=D     // sum of bp + index
     D=M     // get value @ pointer
@@ -190,7 +205,7 @@ class HackVM {
     @R5     // used for bp
     D=M
     @$index
-    D=D+A   // A register used for index
+    D=D+A   // 'A' register used for index
     @R5     // overwrite bp
     M=D     // sum of bp + index
     @R7
@@ -202,13 +217,13 @@ class HackVM {
     )
   }
 
-  private def bool(condition: Boolean): Short = { if (condition) 0xFF else 0x00 }
+  private def bool(condition: Boolean): Short = { if (condition) 0xFFFF else 0x0000 }
 
   @tailrec private def cpu(ast: List[Command]): Unit = {
     if (ast.nonEmpty) {
       print(Console.YELLOW)
       ast.head match {
-        case CPush(segment, index) =>
+        case Push(segment, index) =>
           println(f"\tpush\t$segment%-8s $index%-4s")
           print("\t" + ("-"*20))
           segment match {
@@ -216,7 +231,7 @@ class HackVM {
               Writer.emit(
                 s"""
                   |    @$index
-                  |    D=A    // store constant
+                  |    D=A     // store constant
                 """.stripMargin
               )
               push(index)
@@ -234,7 +249,7 @@ class HackVM {
               }
             case _ => throw new IllegalArgumentException
           }
-        case CPop(segment, index) =>
+        case Pop(segment, index) =>
           println(f"\tpop \t$segment%-8s $index%-4s")
           print("\t" + ("-"*20))
           segment match {
@@ -252,61 +267,15 @@ class HackVM {
               }
             case _ => throw new IllegalArgumentException
           }
-        case Add =>
-          print("\tadd\t\t\t\t\t")
-          val x = pop()
-          Writer.emit(
-          s"""
-          |    @R5
-          |    M=D    // store x
-          """.stripMargin
-          )
-          val y = pop()
-          Writer.emit(
-          s"""
-          |    @R5
-          |    D=D+M    // add x + y
-          """.stripMargin
-          )
-          push(x + y)
-        case Sub =>
-          print("\tsub\t\t\t\t\t")
-          val y = pop()
-          Writer.emit(
-          s"""
-          |    @R5
-          |    M=D    // store y
-          """.stripMargin
-          )
-          val x = pop()
-          Writer.emit(
-          s"""
-             |    @R5
-             |    D=D-M    // add x - y
-          """.stripMargin
-          )
-          push(x - y)
-        case Neg =>
-          print("\tneg \t\t\t\t\t")
-          push(-pop())
-        case And =>
-          print("\tand\t\t\t\t\t")
-          push(pop() & pop())
-        case Or =>
-          print("\tor  \t\t\t\t\t")
-          push(pop() | pop())
-        case Not =>
-          print("\tnot \t\t\t\t\t")
-          push(~pop())
-        case Eq =>
-          print("\teq  \t\t\t\t\t")
-          push(bool(pop() == pop()))
-        case Lt =>
-          print("\tlt  \t\t\t\t\t")
-          push(bool(pop() > pop()))
-        case Gt =>
-          print("\tgt  \t\t\t\t\t")
-          push(bool(pop() < pop()))
+        case Add => add()
+        case Sub => sub()
+        case Neg => neg()
+        case And => and()
+        case Or  => or()
+        case Not => not()
+        case Eq  => eq()
+        case Lt  => lt()
+        case Gt  => gt()
         case Print(n) =>
           print(Console.RED)
           print(s"\t@$n: ${RAM(n)}\t\t\t")
@@ -322,6 +291,187 @@ class HackVM {
       println()
       cpu(ast.tail)
     }
+  }
+
+  private def gt() = {
+    print("\tgt  \t\t\t\t\t")
+
+    val y = pop()
+    Writer.storeD()
+
+    val x = pop()
+    val isGreaterThanLabel = s"is.greater.than.$guid"
+    val isNotGreaterThanLabel = s"is.not.greater.than.$guid"
+    val endIsGreaterThanLabel = s"end.is.greater.than.$guid"
+
+    Writer.emit(
+      s"""
+        |    @R5
+        |    D=D-M    // add x - y
+        |    @$isGreaterThanLabel
+        |    D; JGT
+        |
+        |($isNotGreaterThanLabel)
+        |    D=0
+        |    @$endIsGreaterThanLabel
+        |    0; JMP
+        |
+        |($isGreaterThanLabel)
+        |    D=-1
+        |
+        |($endIsGreaterThanLabel)
+      """ stripMargin
+    )
+
+    guid += 1
+    push(bool(x < y))
+  }
+
+  private def lt() = {
+    print("\tlt  \t\t\t\t\t")
+
+    val y = pop()
+    Writer.storeD()
+
+    val x = pop()
+    val isLessThanLabel = s"is.less.than.$guid"
+    val isNotLessThanLabel = s"is.not.less.than.$guid"
+    val endIsLessThanLabel = s"end.is.less.than.$guid"
+
+    Writer.emit(
+      s"""
+        |    @R5
+        |    D=D-M    // add x - y
+        |    @$isLessThanLabel
+        |    D; JLT
+        |
+        |($isNotLessThanLabel)
+        |    D=0
+        |    @$endIsLessThanLabel
+        |    0; JMP
+        |
+        |($isLessThanLabel)
+        |    D=-1
+        |
+        |($endIsLessThanLabel)
+      """ stripMargin
+    )
+
+    guid += 1
+    push(bool(x > y))
+  }
+
+  private def eq() = {
+    print("\teq  \t\t\t\t\t")
+
+    val y = pop()
+    Writer.storeD()
+
+    val x = pop()
+    val isEqualLabel = s"is.equal.$guid"
+    val isNotEqualLabel = s"is.not.equal.$guid"
+    val endIsEqualLabel = s"end.is.equal.$guid"
+
+    Writer.emit(
+      s"""
+      |    @R5
+      |    D=D-M    // add x - y
+      |    @$isEqualLabel
+      |    D; JEQ
+      |
+      |($isNotEqualLabel)
+      |    D=0
+      |    @$endIsEqualLabel
+      |    0; JMP
+      |
+      |($isEqualLabel)
+      |    D=-1
+      |
+      |($endIsEqualLabel)
+      """ stripMargin
+    )
+
+    guid += 1
+    push(bool(x - y == 0))
+  }
+
+  private def neg() = {
+    print("\tneg \t\t\t\t\t")
+    val x = pop()
+    Writer.emit(
+      s"""
+      |    D=-D    // store -x
+      """ stripMargin
+    )
+    push(-x)
+  }
+
+  private def and() = {
+    print("\tand\t\t\t\t\t")
+    val x = pop()
+    Writer.storeD()
+    val y = pop()
+    Writer.emit(
+      s"""
+      |    @R5
+      |    D=D&M    // add x & y
+      """ stripMargin
+    )
+    push(x & y)
+  }
+
+  private def not() = {
+    print("\tnot \t\t\t\t\t")
+    val D = pop()
+    Writer.emit(
+      s"""
+      |    D=-D
+      |    D=D-1    // store ~x
+      """ stripMargin
+    )
+    push(~D)
+  }
+
+  private def or() = {
+    print("\tor  \t\t\t\t\t")
+    val x = pop()
+    Writer.storeD()
+    val y = pop()
+    Writer.emit(
+      s"""
+      |    @R5
+      |    D=D|M    // add x | y
+      """ stripMargin
+    )
+    push(x | y)
+  }
+
+  private def sub() = {
+    print("\tsub\t\t\t\t\t")
+    val y = pop()
+    Writer.storeD()
+    val x = pop()
+    Writer.emit(
+      s"""
+      |    @R5
+      |    D=D-M    // add x - y
+      """ stripMargin
+    )
+    push(x - y)
+  }
+
+  private def add() = {
+    print("\tadd\t\t\t\t\t")
+    val x = pop()
+    Writer.storeD()
+    val y = pop()
+    Writer.emit(
+      s"""
+      |    @R5
+      |    D=D+M    // add x + y
+      """ stripMargin
+    )
+    push(x + y)
   }
 
   def showRAM(r: Range) = r map { i => f"${RAM(i)}%04d" } mkString("[", ", ", "]")

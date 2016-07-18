@@ -24,8 +24,8 @@ class ILParser extends RegexParsers {
   lazy val index: Parser[Short] = wholeNumber ^^ { _.toShort } | boolean ^^ { case b => if (b == "true") 0x0000 else 0xFFFF }
   lazy val identifier = """(?i)[_a-z.][_a-z0-9]*""".r
   lazy val opCode: Parser[Command] = (
-      "push" ~ segment ~ index ^^ { case _ ~ s ~ i => CPush(s, i) } // push the value of segment[index] onto the stack
-    | "pop" ~ segment ~ index ^^ { case _ ~ s ~ i => CPop(s, i) } // store in segment[index]
+      "push" ~ segment ~ index ^^ { case _ ~ s ~ i => Push(s, i) } // push the value of segment[index] onto the stack
+    | "pop" ~ segment ~ index ^^ { case _ ~ s ~ i => Pop(s, i) } // store in segment[index]
     | "add" ^^ { case _ => Add }
     | "sub" ^^ { case _ => Sub }
     | "neg" ^^ { case _ => Neg }
