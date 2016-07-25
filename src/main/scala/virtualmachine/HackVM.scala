@@ -5,6 +5,8 @@ import virtualmachine.AST._
 import scala.annotation.tailrec
 import scala.language.postfixOps
 
+// TODO separate VM translator from interpreter
+
 class HackVM {
 
   /*
@@ -31,6 +33,7 @@ class HackVM {
 
   var guid = 0
 
+  // TODO have this object be injectable and write to a file
   object Writer {
     def emit(s: String) = print(s"${Console.CYAN}$s")
     def storeD() = {
@@ -82,7 +85,7 @@ class HackVM {
     RAM(2)
   }
 
-  //def arg(value: Word)    = RAM(2) = value
+  //def arg(value: Word) = RAM(2) = value
 
   def `this` = {
     Writer.emit(

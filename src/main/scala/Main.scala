@@ -1,90 +1,42 @@
+import java.io.{File, FileReader, PrintWriter}
+
 import virtualmachine._
 
-object Main extends App {
-  //bootStackedVM
-  bootILParser()
+object Main {
+  def getFiles(dir: File) = dir.listFiles.filter(_.isFile).toList
 
-  def bootILParser(): Unit = {
-    val p = new ILParser
-    val s =
-      """
-        |push constant 6
-        |push constant 5
-        |lt
-//        |pop static 0
-//        |push constant 7
-//        |push constant 7
-//        |eq
-//        |pop static 0
-//        |push constant 3
-//        |push constant 5
-//        |eq
-//        |pop static 0
-//        |push constant 5
-//        |push constant 3
-//        |eq
-//        |pop static 0
-//        |push constant 3030
-//        |pop pointer 0
-//        |print 3
-//        |push constant 3040
-//        |pop pointer 1
-//        |print 4
-//        |push constant 32
-//        |pop this 2
-//        |print 3032 // should be 32
-//        |push constant 46
-//        |pop that 6
-//        |print 3046 // should be 46
-//        |push pointer 0
-//        |push pointer 1
-//        |add
-//        |push this 2
-//        |sub
-//        |push that 6
-//        |add
-//        |push constant 111
-//        |push constant 333
-//        |push constant 888
-//        |pop static 8
-//        |print 24 // 888
-//        |pop static 3
-//        |print 19 // 333
-//        |pop static 1
-//        |print 17 // 111
-//        |push static 3
-//        |push static 1
-//        |sub
-//        |push static 8
-//        |add
-//        |push constant 10
-//        |pop local 0
-//        |push constant 21
-//        |push constant 22
-//        |pop argument 2
-//        |pop argument 1
-//        |push constant 36
-//        |pop this 6
-//        |push constant 42
-//        |push constant 45
-//        |pop that 5
-//        |pop that 2
-//        |push constant 510
-//        |pop temp 6
-//        |push local 0
-//        |push that 5
-//        |add
-//        |push argument 1
-//        |sub
-//        |push this 6
-//        |push this 6
-//        |add
-//        |sub
-//        |push temp 6
-//        |add
-      """.stripMargin
-    val vm = new HackVM()
-    vm.process(p.run(s))
+  def main(args: Array[String]) = {
+    println("Hack Translator \u00A9 2016" + args.length)
+    if (args.length == 1) {
+      if (args.head.contains(".vm")) {
+        val file = args.head
+        val p = new ILParser()
+        //val vm = new HackVM()
+        val ast = p.run(new FileReader(file))
+        println(s"ast: $ast")
+        implicit val vm = new PrintWriter(file.replace("vm", "asm"))
+        val translator = new Translator
+        //vm.process(p.run(s))
+        translator.process(ast)
+
+        //val pw = new PrintWriter(out)
+        //try ml foreach { case (address, op) => pw.println(op) }
+        //finally pw.close()
+
+      } else {
+        val p = new ILParser()
+        val files = getFiles(new File(args.head))
+        files filter { _.getName.endsWith("vm") } foreach { file =>
+          val ast = p.run(new FileReader(file))
+          implicit val vm = new PrintWriter(s"${file.getAbsolutePath.stripSuffix("vm")}asm")
+          val translator = new Translator
+          try translator.process(ast)
+          finally vm.close()
+        }
+
+        // TODO: concat all files into one asm named after parent directory
+      }
+    } else println("Please provide a vm file or directory with vm files.")
   }
 
   def bootStackedVM() = {
