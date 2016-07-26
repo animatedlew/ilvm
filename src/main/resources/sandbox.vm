@@ -5,7 +5,7 @@ pop static 0
 push constant 7
 push constant 7
 eq
-//        pop static 0
+pop static 0
 //        push constant 3
 //        push constant 5
 //        eq

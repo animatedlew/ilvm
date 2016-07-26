@@ -1,40 +1,61 @@
 import java.io.{File, FileReader, PrintWriter}
-
+import scala.io.Source
 import virtualmachine._
 
 object Main {
-  def getFiles(dir: File) = dir.listFiles.filter(_.isFile).toList
 
   def main(args: Array[String]) = {
-    println("Hack Translator \u00A9 2016" + args.length)
+    println("Hack Translator \u00A9 2016")
     if (args.length == 1) {
       if (args.head.contains(".vm")) {
         val file = args.head
         val p = new ILParser()
+        val fileReader = new FileReader(file)
         //val vm = new HackVM()
-        val ast = p.run(new FileReader(file))
-        println(s"ast: $ast")
+        val ast = p.run(fileReader)
+        fileReader.close()
         implicit val vm = new PrintWriter(file.replace("vm", "asm"))
         val translator = new Translator
         //vm.process(p.run(s))
-        translator.process(ast)
-
-        //val pw = new PrintWriter(out)
-        //try ml foreach { case (address, op) => pw.println(op) }
-        //finally pw.close()
+        try translator.process(ast)
+        finally vm.close()
 
       } else {
-        val p = new ILParser()
-        val files = getFiles(new File(args.head))
-        files filter { _.getName.endsWith("vm") } foreach { file =>
-          val ast = p.run(new FileReader(file))
-          implicit val vm = new PrintWriter(s"${file.getAbsolutePath.stripSuffix("vm")}asm")
-          val translator = new Translator
-          try translator.process(ast)
-          finally vm.close()
-        }
-
-        // TODO: concat all files into one asm named after parent directory
+        val f = new File(args.head)
+        if (f.isDirectory) {
+          val outFileName =s"${f.getAbsolutePath}/${f.getName}.asm"
+          val vmFiles = f.listFiles.filter { f => f.isFile && f.getName.endsWith("vm") }
+          println("in:")
+          vmFiles foreach {
+            println(_)
+          }
+          val p = new ILParser()
+          vmFiles foreach { file =>
+            val f = new FileReader(file)
+            val ast = try p.run(f) finally f.close()
+            implicit val vm = new PrintWriter(s"${file.getAbsolutePath.stripSuffix("vm")}asm")
+            val translator = new Translator
+            try translator.process(ast)
+            finally vm.close()
+          }
+          val outFile = new PrintWriter(outFileName)
+          val asmFiles = new File(args.head).listFiles.filter { f =>
+            f.isFile && f.getName.endsWith("asm") && !outFileName.endsWith(f.getName)
+          }
+          println("out: ")
+          asmFiles foreach {
+            println(_)
+          }
+          val asm = asmFiles.foldLeft(""){ case (out, file) =>
+            val f = Source.fromFile(file)
+            val data = f.mkString
+            val result = out + s"\n//\t${file.getName}\t//\n$data"
+            f.close()
+            result
+          }
+          outFile.write(asm)
+          outFile.close()
+        } else println("Please provide valid directory.")
       }
     } else println("Please provide a vm file or directory with vm files.")
   }
