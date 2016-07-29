@@ -37,8 +37,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     }
   }
 
-  // temp    R05 - R12
-  // general R13 - R15
+  var static = 16 // TODO: make this configurable
 
   def getLocal() = {
     Writer.emit(
@@ -108,8 +107,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
 
   def getStatic() = {
     Writer.emit(
-    """
-    @16
+    s"""
+    @$static
     D=A
     @R5
     M=D
@@ -265,20 +264,20 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     val endIsGreaterThanLabel = s"end.is.greater.than.${Util.getId}"
     Writer.emit(
       s"""
-       |    @R5
-       |    D=D-M    // add x - y
-       |    @$isGreaterThanLabel
-       |    D; JGT
-       |
-       |($isNotGreaterThanLabel)
-       |    D=0
-       |    @$endIsGreaterThanLabel
-       |    0; JMP
-       |
-       |($isGreaterThanLabel)
-       |    D=-1
-       |
-       |($endIsGreaterThanLabel)
+      |    @R5
+      |    D=D-M    // add x - y
+      |    @$isGreaterThanLabel
+      |    D; JGT
+      |
+      |($isNotGreaterThanLabel)
+      |    D=0
+      |    @$endIsGreaterThanLabel
+      |    0; JMP
+      |
+      |($isGreaterThanLabel)
+      |    D=-1
+      |
+      |($endIsGreaterThanLabel)
       """ stripMargin
     )
     push()
@@ -295,20 +294,20 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     val endIsLessThanLabel = s"end.is.less.than.${Util.getId}"
     Writer.emit(
       s"""
-       |    @R5
-       |    D=D-M    // add x - y
-       |    @$isLessThanLabel
-       |    D; JLT
-       |
-       |($isNotLessThanLabel)
-       |    D=0
-       |    @$endIsLessThanLabel
-       |    0; JMP
-       |
-       |($isLessThanLabel)
-       |    D=-1
-       |
-       |($endIsLessThanLabel)
+      |    @R5
+      |    D=D-M    // add x - y
+      |    @$isLessThanLabel
+      |    D; JLT
+      |
+      |($isNotLessThanLabel)
+      |    D=0
+      |    @$endIsLessThanLabel
+      |    0; JMP
+      |
+      |($isLessThanLabel)
+      |    D=-1
+      |
+      |($endIsLessThanLabel)
       """ stripMargin
     )
     push()
@@ -325,20 +324,20 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     val endIsEqualLabel = s"end.is.equal.${Util.getId}"
     Writer.emit(
       s"""
-       |    @R5
-       |    D=D-M    // add x - y
-       |    @$isEqualLabel
-       |    D; JEQ
-       |
-       |($isNotEqualLabel)
-       |    D=0
-       |    @$endIsEqualLabel
-       |    0; JMP
-       |
-       |($isEqualLabel)
-       |    D=-1
-       |
-       |($endIsEqualLabel)
+      |    @R5
+      |    D=D-M    // add x - y
+      |    @$isEqualLabel
+      |    D; JEQ
+      |
+      |($isNotEqualLabel)
+      |    D=0
+      |    @$endIsEqualLabel
+      |    0; JMP
+      |
+      |($isEqualLabel)
+      |    D=-1
+      |
+      |($endIsEqualLabel)
       """ stripMargin
     )
     push()

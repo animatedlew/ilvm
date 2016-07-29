@@ -11,15 +11,14 @@ object Main {
         val file = args.head
         val p = new ILParser()
         val fileReader = new FileReader(file)
-        //val vm = new HackVM()
         val ast = p.run(fileReader)
+        val runtime = new HackVM()
+        runtime.process(ast)
         fileReader.close()
         implicit val vm = new PrintWriter(file.replace("vm", "asm"))
-        val translator = new Translator(file.replace(".vm", ""))
-        //vm.process(p.run(s))
+        val translator = new Translator(file.split("/").reverse.head.replaceAll("""\.vm|\/""", ""))
         try translator.process(ast)
         finally vm.close()
-
       } else {
         val f = new File(args.head)
         if (f.isDirectory) {
