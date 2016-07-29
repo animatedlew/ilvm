@@ -4,54 +4,62 @@ import virtualmachine._
 
 object Main {
 
-  def main(args: Array[String]) = {
-    println("Hack Translator \u00A9 2016")
-    if (args.length == 1) {
-      if (args.head.contains(".vm")) {
-        val file = args.head
-        val p = new ILParser()
-        val fileReader = new FileReader(file)
-        val ast = p.run(fileReader)
-        val runtime = new HackVM()
-        runtime.process(ast)
-        fileReader.close()
-        implicit val vm = new PrintWriter(file.replace("vm", "asm"))
-        val translator = new Translator(file.split("/").reverse.head.replaceAll("""\.vm|\/""", ""))
+  def process(arg: String, f: File) = {
+    if (f.isFile && arg.contains(".vm")) {
+
+      val vmFileName = arg
+      val asmFileName = vmFileName.replace("vm", "asm")
+      val fileName = vmFileName.split("/").reverse.head.replaceAll("""\.vm|\/""", "")
+
+      val p = new ILParser()
+      val fileReader = new FileReader(vmFileName)
+      val ast = p.run(fileReader)
+      fileReader.close()
+
+      val runtime = new HackVM()
+      runtime.process(ast)
+
+      implicit val vm = new PrintWriter(asmFileName)
+      try new Translator(fileName).process(ast)
+      finally vm.close()
+
+    } else if (f.isDirectory) {
+
+      val outFileName = s"${f.getAbsolutePath}/${f.getName}.asm"
+      val vmFiles = f.listFiles.filter { f => f.isFile && f.getName.endsWith("vm") }
+      println("in:"); vmFiles foreach { println(_) }
+
+      val p = new ILParser()
+      vmFiles foreach { file =>
+        val f = new FileReader(file)
+        val ast = try p.run(f) finally f.close()
+        implicit val vm = new PrintWriter(s"${file.getAbsolutePath.stripSuffix("vm")}asm")
+        val translator = new Translator(file.getName.replace(".vm", ""))
         try translator.process(ast)
         finally vm.close()
-      } else {
-        val f = new File(args.head)
-        if (f.isDirectory) {
-          val outFileName =s"${f.getAbsolutePath}/${f.getName}.asm"
-          val vmFiles = f.listFiles.filter { f => f.isFile && f.getName.endsWith("vm") }
-          println("in:"); vmFiles foreach { println(_) }
-          val p = new ILParser()
-          vmFiles foreach { file =>
-            val f = new FileReader(file)
-            val ast = try p.run(f) finally f.close()
-            implicit val vm = new PrintWriter(s"${file.getAbsolutePath.stripSuffix("vm")}asm")
-            val translator = new Translator(file.getName.replace(".vm", ""))
-            try translator.process(ast)
-            finally vm.close()
-          }
-          val outFile = new PrintWriter(outFileName)
-          val asmFiles = new File(args.head).listFiles.filter { f =>
-            f.isFile && f.getName.endsWith("asm") && !outFileName.endsWith(f.getName)
-          }
-          println("out: ")
-          asmFiles foreach { println(_) }
-          val asm = asmFiles.foldLeft(""){ case (out, file) =>
-            val f = Source.fromFile(file)
-            val data = f.mkString
-            val result = out + s"\n//\t${file.getName}\t//\n$data"
-            f.close()
-            result
-          }
-          outFile.write(asm)
-          outFile.close()
-        } else println("Please provide valid directory.")
       }
-    } else println("Please provide a vm file or directory with vm files.")
+
+      val outFile = new PrintWriter(outFileName)
+      val asmFiles = new File(arg).listFiles.filter { f =>
+        f.isFile && f.getName.endsWith("asm") && !outFileName.endsWith(f.getName)
+      }
+      println("out: ")
+      asmFiles foreach { println(_) }
+      val asm = asmFiles.foldLeft(""){ case (out, file) =>
+        val handle = Source.fromFile(file)
+        val result = out + s"\n//\t${file.getName}\t//\n${handle.mkString}"
+        handle.close()
+        result
+      }
+      outFile.write(asm)
+      outFile.close()
+    } else println(s"${Console.YELLOW}Please provide a valid vm file or a directory with valid vm files.")
+  }
+
+  def main(args: Array[String]) = {
+    println("Hack Translator \u00A9 2016")
+    if (args.length == 1) process(args.head, new File(args.head))
+    else println(s"${Console.YELLOW}Usage: translator [file.vm|directory]")
   }
 
   def bootStackedVM() = {
