@@ -15,7 +15,7 @@ object Main {
         val ast = p.run(fileReader)
         fileReader.close()
         implicit val vm = new PrintWriter(file.replace("vm", "asm"))
-        val translator = new Translator
+        val translator = new Translator(file.replace(".vm", ""))
         //vm.process(p.run(s))
         try translator.process(ast)
         finally vm.close()
@@ -25,16 +25,13 @@ object Main {
         if (f.isDirectory) {
           val outFileName =s"${f.getAbsolutePath}/${f.getName}.asm"
           val vmFiles = f.listFiles.filter { f => f.isFile && f.getName.endsWith("vm") }
-          println("in:")
-          vmFiles foreach {
-            println(_)
-          }
+          println("in:"); vmFiles foreach { println(_) }
           val p = new ILParser()
           vmFiles foreach { file =>
             val f = new FileReader(file)
             val ast = try p.run(f) finally f.close()
             implicit val vm = new PrintWriter(s"${file.getAbsolutePath.stripSuffix("vm")}asm")
-            val translator = new Translator
+            val translator = new Translator(file.getName.replace(".vm", ""))
             try translator.process(ast)
             finally vm.close()
           }
@@ -43,9 +40,7 @@ object Main {
             f.isFile && f.getName.endsWith("asm") && !outFileName.endsWith(f.getName)
           }
           println("out: ")
-          asmFiles foreach {
-            println(_)
-          }
+          asmFiles foreach { println(_) }
           val asm = asmFiles.foldLeft(""){ case (out, file) =>
             val f = Source.fromFile(file)
             val data = f.mkString

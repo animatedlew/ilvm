@@ -7,9 +7,22 @@ import virtualmachine.AST._
 import scala.annotation.tailrec
 import scala.language.postfixOps
 
-class Translator(implicit f: PrintWriter) {
+class Translator(namespace: String = "global")(implicit f: PrintWriter) {
 
-  var guid = 0
+  object Util {
+    private var guid = 0
+    private var muid = 0
+    def getId = {
+      val nextGUID = s"$namespace.$guid"
+      guid += 1
+      nextGUID
+    }
+    def getId(method: String) = {
+      val nextGUID = s"$namespace.$method.$muid"
+      muid += 1
+      nextGUID
+    }
+  }
 
   object Writer {
     def emit(s: String)(implicit f: PrintWriter) = f.write(s)
@@ -27,7 +40,7 @@ class Translator(implicit f: PrintWriter) {
   // temp    R05 - R12
   // general R13 - R15
 
-  def local = {
+  def getLocal() = {
     Writer.emit(
     """
     @R1
@@ -40,7 +53,7 @@ class Translator(implicit f: PrintWriter) {
 
   //def local(value: Word) = RAM(1) = value
 
-  def arg = {
+  def getArg() = {
     Writer.emit(
     """
     @R2
@@ -53,7 +66,7 @@ class Translator(implicit f: PrintWriter) {
 
   //def arg(value: Word) = RAM(2) = value
 
-  def `this` = {
+  def getThis() = {
     Writer.emit(
     """
     @R3
@@ -73,7 +86,7 @@ class Translator(implicit f: PrintWriter) {
     )
   }
 
-  def that = {
+  def getThat() = {
     Writer.emit(
     """
     @R4
@@ -93,7 +106,7 @@ class Translator(implicit f: PrintWriter) {
     )
   }
 
-  def static = {
+  def getStatic() = {
     Writer.emit(
     """
     @16
@@ -103,7 +116,7 @@ class Translator(implicit f: PrintWriter) {
     """
     )
   }
-  def temp = {
+  def getTemp() = {
     Writer.emit(
     """
     @5
@@ -189,21 +202,21 @@ class Translator(implicit f: PrintWriter) {
             case "constant" =>
               Writer.emit(
                 s"""
-                   |    @$index
-                   |    D=A     // store constant
+                |    @$index
+                |    D=A     // store constant
                 """.stripMargin
               )
               push()
-            case "static"   => static; push(index)
-            case "local"    => local;  push(index)
-            case "argument" => arg;    push(index)
-            case "this"     => `this`; push(index)
-            case "that"     => that;   push(index)
-            case "temp"     => temp;   push(index)
+            case "static"   => getStatic(); push(index)
+            case "local"    => getLocal();  push(index)
+            case "argument" => getArg();    push(index)
+            case "this"     => getThis();   push(index)
+            case "that"     => getThat();   push(index)
+            case "temp"     => getTemp();   push(index)
             case "pointer"  =>
               index match {
-                case 0 => `this`; push()
-                case 1 => that;   push()
+                case 0 => getThis(); push()
+                case 1 => getThat();   push()
                 case _ => throw new IllegalArgumentException
               }
             case _ => throw new IllegalArgumentException
@@ -213,12 +226,12 @@ class Translator(implicit f: PrintWriter) {
           Writer.emitRule()
 
           segment match {
-            case "static"   => static; pop(index)
-            case "local"    => local;  pop(index)
-            case "argument" => arg;    pop(index)
-            case "this"     => `this`; pop(index)
-            case "that"     => that;   pop(index)
-            case "temp"     => temp;   pop(index)
+            case "static"   => getStatic(); pop(index)
+            case "local"    => getLocal();  pop(index)
+            case "argument" => getArg();    pop(index)
+            case "this"     => getThis();   pop(index)
+            case "that"     => getThat();   pop(index)
+            case "temp"     => getTemp();   pop(index)
             case "pointer"  =>
               index match {
                 case 0 => pop(); setThis()
@@ -244,15 +257,12 @@ class Translator(implicit f: PrintWriter) {
   private def gt() = {
     Writer.emit("\n//\tgt\n")
     Writer.emitRule()
-
     pop()
     Writer.storeD
     pop()
-
-    val isGreaterThanLabel = s"is.greater.than.$guid"
-    val isNotGreaterThanLabel = s"is.not.greater.than.$guid"
-    val endIsGreaterThanLabel = s"end.is.greater.than.$guid"
-
+    val isGreaterThanLabel = s"is.greater.than.${Util.getId}"
+    val isNotGreaterThanLabel = s"is.not.greater.than.${Util.getId}"
+    val endIsGreaterThanLabel = s"end.is.greater.than.${Util.getId}"
     Writer.emit(
       s"""
        |    @R5
@@ -271,24 +281,18 @@ class Translator(implicit f: PrintWriter) {
        |($endIsGreaterThanLabel)
       """ stripMargin
     )
-
-    guid += 1
     push()
   }
 
-  // TODO: prefix all labels according to spec, prefix with module.method.op
   private def lt() = {
     Writer.emit("\n//\tlt\n")
     Writer.emitRule()
-
     pop()
     Writer.storeD
     pop()
-
-    val isLessThanLabel = s"is.less.than.$guid"
-    val isNotLessThanLabel = s"is.not.less.than.$guid"
-    val endIsLessThanLabel = s"end.is.less.than.$guid"
-
+    val isLessThanLabel = s"is.less.than.${Util.getId}"
+    val isNotLessThanLabel = s"is.not.less.than.${Util.getId}"
+    val endIsLessThanLabel = s"end.is.less.than.${Util.getId}"
     Writer.emit(
       s"""
        |    @R5
@@ -307,23 +311,18 @@ class Translator(implicit f: PrintWriter) {
        |($endIsLessThanLabel)
       """ stripMargin
     )
-
-    guid += 1
     push()
   }
 
   private def eq() = {
     Writer.emit("\n//\teq\n")
     Writer.emitRule()
-
     pop()
     Writer.storeD
     pop()
-
-    val isEqualLabel = s"is.equal.$guid"
-    val isNotEqualLabel = s"is.not.equal.$guid"
-    val endIsEqualLabel = s"end.is.equal.$guid"
-
+    val isEqualLabel = s"is.equal.${Util.getId}"
+    val isNotEqualLabel = s"is.not.equal.${Util.getId}"
+    val endIsEqualLabel = s"end.is.equal.${Util.getId}"
     Writer.emit(
       s"""
        |    @R5
@@ -342,19 +341,16 @@ class Translator(implicit f: PrintWriter) {
        |($endIsEqualLabel)
       """ stripMargin
     )
-
-    guid += 1
     push()
   }
 
   private def neg() = {
     Writer.emit("\n//\tneg\n")
     Writer.emitRule()
-
     pop()
     Writer.emit(
       """
-         |    D=-D    // store -x
+      |    D=-D    // store -x
       """ stripMargin
     )
     push()
@@ -363,14 +359,13 @@ class Translator(implicit f: PrintWriter) {
   private def and() = {
     Writer.emit("\n//\tand\n")
     Writer.emitRule()
-
     pop()
     Writer.storeD
     pop()
     Writer.emit(
       s"""
-         |    @R5
-         |    D=D&M    // add x & y
+      |    @R5
+      |    D=D&M    // add x & y
       """ stripMargin
     )
     push()
@@ -379,12 +374,11 @@ class Translator(implicit f: PrintWriter) {
   private def not() = {
     Writer.emit("\n//\tnot\n")
     Writer.emitRule()
-
     pop()
     Writer.emit(
       s"""
-         |    D=-D
-         |    D=D-1    // store ~x
+      |    D=-D
+      |    D=D-1    // store ~x
       """ stripMargin
     )
     push()
@@ -393,14 +387,13 @@ class Translator(implicit f: PrintWriter) {
   private def or() = {
     Writer.emit("\n//\tor\n")
     Writer.emitRule()
-
     pop()
     Writer.storeD
     pop()
     Writer.emit(
       """
-         |    @R5
-         |    D=D|M    // add x | y
+      |    @R5
+      |    D=D|M    // add x | y
       """ stripMargin
     )
     push()
@@ -409,14 +402,13 @@ class Translator(implicit f: PrintWriter) {
   private def sub() = {
     Writer.emit("\n//\tsub\n")
     Writer.emitRule()
-
     pop()
     Writer.storeD
     pop()
     Writer.emit(
       """
-         |    @R5
-         |    D=D-M    // add x - y
+      |    @R5
+      |    D=D-M    // add x - y
       """ stripMargin
     )
     push()
@@ -425,14 +417,13 @@ class Translator(implicit f: PrintWriter) {
   private def add() = {
     Writer.emit("\n//\tadd\n")
     Writer.emitRule()
-
     pop()
     Writer.storeD
     pop()
     Writer.emit(
       s"""
-         |    @R5
-         |    D=D+M    // add x + y
+      |    @R5
+      |    D=D+M    // add x + y
       """ stripMargin
     )
     push()
