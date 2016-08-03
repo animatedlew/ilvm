@@ -7,13 +7,13 @@ class ILParserSpec extends FlatSpec with Matchers {
   "ILParser" should "parse all vm commands" in {
     val p = new ILParser
     val result = p.run("""
-      pop local true
-      pop local false
+      pop local 0
+      pop local 1
       label xyz
       goto xyz
       if-goto xyz
       function mult 2 // two local vars
-      call mult // call identifier
+      call mult 2 // call identifier
       return // return what's on the stack
       push constant 2
       push constant 3
@@ -44,7 +44,7 @@ class ILParserSpec extends FlatSpec with Matchers {
       pop temp 0
     """)
     result.toString should equal("""
-      List(CPop(local,0), CPop(local,-1), CLabel(xyz), CGoto(xyz), CIf(xyz), CFunction(mult,2), CCall(mult), CReturn, CPush(constant,2), CPush(constant,3), Add, CPop(local,0), Eq, Lt, Gt, Sub, And, Or, Not, CPop(argument,0), CPush(argument,0), CPush(local,0), CPop(local,0), CPush(static,0), CPop(static,0), CPush(constant,0), CPop(constant,0), CPush(this,0), CPop(this,0), CPush(this,0), CPop(that,0), CPush(pointer,0), CPop(pointer,0), CPush(temp,0), CPop(temp,0))
+      List(Pop(local,0), Pop(local,1), Label(xyz), Goto(xyz), If(xyz), Function(mult,2), Call(mult,2), Return, Push(constant,2), Push(constant,3), Add, Pop(local,0), Eq, Lt, Gt, Sub, And, Or, Not, Pop(argument,0), Push(argument,0), Push(local,0), Pop(local,0), Push(static,0), Pop(static,0), Push(constant,0), Pop(constant,0), Push(this,0), Pop(this,0), Push(this,0), Pop(that,0), Push(pointer,0), Pop(pointer,0), Push(temp,0), Pop(temp,0))
     """.trim)
   }
 }
