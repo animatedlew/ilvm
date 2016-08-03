@@ -25,7 +25,8 @@ class ILVM {
   RAM(3) = 3000
   RAM(4) = 3010
 
-  RAM(400) = 3
+  RAM(400) = 6
+  RAM(401) = 3000
 
   val labels = mutable.Map[String, Short]() // used for branching
 
@@ -76,7 +77,7 @@ class ILVM {
 
   private def bool(condition: Boolean): Short = { if (condition) 0xFFFF else 0x0000 }
 
-  @tailrec private def cpu(ast: List[Command], ip: Short = 0): Short = {
+  @tailrec private def cpu(ast: Vector[Command], ip: Short = 0): Short = {
     if (ip < ast.size) {
       var nextip = ip + 1
       ast(ip) match {
@@ -237,5 +238,22 @@ class ILVM {
   def showStack() = Writer.emit(f"\tstack    : ${showRAM(256 to (if (sp < 2047) sp - 1 else 2047))}%-16s\n")
   def showStatics(n: Short = 240) = Writer.emit(s"\tstatics  : ${showRAM((16 to 255).take(n))}")
   def showRegisters() = Writer.emit(f"\tregisters: ${showRAM(0 to 16)}")
-  def process(ast: List[Command]) = cpu(ast)
+
+  def labelPass(ast: List[Command]) = {
+    var count = 0
+    ast.zipWithIndex.filterNot { case (command, index) =>
+      command match {
+        case n@Label(value) =>
+          labels(value) = index - count
+          count += 1
+          true
+        case n => false
+      }
+    }.map { _._1 }.toVector
+  }
+
+  def process(ast: List[Command]) = {
+    cpu(labelPass(ast))
+    Writer.emit(s"${(3000 until 3006).map { RAM(_) }.mkString(", ")}")
+  }
 }
