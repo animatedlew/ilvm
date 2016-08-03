@@ -10,13 +10,13 @@ object AST {
   trait FunctionCommand   extends Command
   trait FlowCommand       extends Command
 
-  case class CLabel(value: String) extends Command
-  case class CGoto(label: String)  extends Command
-  case class CIf(label: String)    extends Command
+  case class Label(value: String) extends Command
+  case class Goto(label: String)  extends Command
+  case class If(label: String)    extends Command
 
-  case class  CCall(label: String)                  extends FunctionCommand
-  case class  CFunction(label: String, argc: Short) extends FunctionCommand
-  case object CReturn                               extends FunctionCommand
+  case class  Call(label: String, argc: Short)     extends FunctionCommand
+  case class  Function(label: String, argc: Short) extends FunctionCommand
+  case object Return                               extends FunctionCommand
 
   case class Push(segment: String, index: Word) extends MemoryCommand
   case class Pop(segment: String, index: Word)  extends MemoryCommand

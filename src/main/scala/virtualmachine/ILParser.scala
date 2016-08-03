@@ -9,9 +9,7 @@ import java.io.FileReader
 import language.{implicitConversions, postfixOps}
 
 class ILParser extends RegexParsers {
-
   override val whiteSpace = """([ \t]|//.*)+""".r
-  lazy val boolean = "true" | "false"
   lazy val segment = (
       "local"
     | "argument"
@@ -23,8 +21,8 @@ class ILParser extends RegexParsers {
     | "temp"
   )
   lazy val wholeNumber = """-?\d+""".r
-  lazy val index: Parser[Short] = wholeNumber ^^ { _.toShort } | boolean ^^ { b => if (b == "true") 0xFFFF else 0x0000 }
-  lazy val identifier = """(?i)[_a-z.][_a-z0-9]*""".r
+  lazy val index = wholeNumber ^^ { _.toShort }
+  lazy val identifier = """(?i)[_a-z.:][_a-z0-9.:$]*""".r
   lazy val opCode: Parser[Command] = (
       "push" ~ segment ~ index ^^ { case _ ~ s ~ i => Push(s, i) } // push the value of segment[index] onto the stack
     | "pop" ~ segment ~ index ^^ { case _ ~ s ~ i => Pop(s, i) } // store in segment[index]
@@ -37,12 +35,12 @@ class ILParser extends RegexParsers {
     | "eq"  ^^ { _ =>  Eq }
     | "lt"  ^^ { _ =>  Lt }
     | "gt"  ^^ { _ =>  Gt }
-    | "call" ~ identifier ^^ { case _ ~ label => CCall(label) }
-    | "return" ^^ { _ => CReturn }
-    | "function" ~ identifier ~ wholeNumber ^^ { case _ ~ label ~ n => CFunction(label, n.toShort) }
-    | "if-goto" ~ identifier ^^ { case _ ~ label => CIf(label) }
-    | "goto" ~ identifier ^^ { case _ ~ label => CGoto(label) }
-    | "label" ~ identifier ^^ { case _ ~ label => CLabel(label) }
+    | "call" ~ identifier ~ index ^^ { case _ ~ label ~ argc => Call(label, argc.toShort) }
+    | "return" ^^ { _ => Return }
+    | "function" ~ identifier ~ wholeNumber ^^ { case _ ~ label ~ n => Function(label, n.toShort) }
+    | "if-goto" ~ identifier ^^ { case _ ~ label => If(label) }
+    | "goto" ~ identifier ^^ { case _ ~ label => Goto(label) }
+    | "label" ~ identifier ^^ { case _ ~ label => Label(label) }
     | "print" ~ wholeNumber ^^ { case _ ~ address => Print(address.toShort) }
   )
   lazy val blank = "" ^^ { _ => Blank }

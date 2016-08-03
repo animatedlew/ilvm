@@ -1,41 +1,33 @@
 package virtualmachine
 
 import virtualmachine.AST._
+import annotation.tailrec
+import collection.mutable
+import language.postfixOps
 
-import scala.annotation.tailrec
-import scala.language.postfixOps
+class ILVM {
 
-class HackVM {
-
-  /*
-   *  RAM usage
-   * -=-=-=-=-=-
-   * 0-15        | registers
-   * 16-255      | static variables
-   * 256-2047    | stack
-   * 2048-16383  | heap for objects and arrays
-   * 16384-24575 | memory mapped I/O
-   * 24576-32767 | unused memory space
-   *
-   * R0     - SP, topmost location on the stack
-   * R1     - LCL, points to the base of function's current local segment
-   * R2     - ARG, points to the base of function's argument segment
-   * R3     - THIS, points to the base of this segment within heap
-   * R4     - THAT, points to the base of that segment within heap
-   * R5:12  - temp segment
-   * R13:15 - General purpose registers
-   */
+  val LOG = true
 
   var RAM  = new Array[Word](16384 + 8192 + 1) // 16k + 8k + 1reg
   var ROM  = new Array[Word](32768) // 32k RESERVED
 
-  object Writer { def emit(s: String) = print(s"${Console.CYAN}$s") }
+  object Writer {
+    def emit(s: String) = if (LOG) print(s"${Console.CYAN}$s")
+    def emitLn() = emit("\n")
+    def emitRule() = emit(s"\t${Console.YELLOW}" + ("-"*24))
+  }
 
+  // TODO: configure these in constructor
   RAM(0) = 256
   RAM(1) = 300
   RAM(2) = 400
   RAM(3) = 3000
   RAM(4) = 3010
+
+  RAM(400) = 3
+
+  val labels = mutable.Map[String, Short]() // used for branching
 
   // temp    R05 - R12
   // general R13 - R15
@@ -84,13 +76,13 @@ class HackVM {
 
   private def bool(condition: Boolean): Short = { if (condition) 0xFFFF else 0x0000 }
 
-  @tailrec private def cpu(ast: List[Command]): Unit = {
-    if (ast.nonEmpty) {
-      print(Console.YELLOW)
-      ast.head match {
+  @tailrec private def cpu(ast: List[Command], ip: Short = 0): Short = {
+    if (ip < ast.size) {
+      var nextip = ip + 1
+      ast(ip) match {
         case Push(segment, index) =>
-          println(f"\tpush\t$segment%-8s $index%-4s")
-          print("\t" + ("-"*20))
+          Writer.emit(f"\t${Console.YELLOW}push\t$segment%-8s $index%-4s\n")
+          Writer.emitRule()
           segment match {
             case "constant" => push(index)
             case "static"   => push(getStatic, index)
@@ -108,8 +100,8 @@ class HackVM {
             case _ => throw new IllegalArgumentException
           }
         case Pop(segment, index) =>
-          println(f"\tpop \t$segment%-8s $index%-4s")
-          print("\t" + ("-"*20))
+          Writer.emit(f"\t${Console.YELLOW}pop \t$segment%-8s $index%-4s\n")
+          Writer.emitRule()
           segment match {
             case "static"   => pop(getStatic, index)
             case "local"    => pop(getLocal,  index)
@@ -134,87 +126,116 @@ class HackVM {
         case Eq  => eq()
         case Lt  => lt()
         case Gt  => gt()
+        case Label(value) =>
+          Writer.emit(f"\t($value)\n")
+          Writer.emitRule()
+          labels(value) = ip + 1
+        case If(label) =>
+          Writer.emit(f"\t${Console.YELLOW}if-goto \t$label%-8s\n")
+          Writer.emitRule()
+          nextip = if (pop() != 0.toShort) labels(label) else ip + 1
+        case Goto(label) =>
+          Writer.emit(f"\t${Console.YELLOW}goto \t$label%-8s\n")
+          Writer.emitRule()
+          nextip = labels(label)
+        case Call(name, argc) =>
+          println(f"\t${Console.YELLOW}call \t$name%-8s $argc%-4s")
+          Writer.emitRule()
+        case Function(name, argc) =>
+          Writer.emit(f"\t${Console.YELLOW}function \t$name%-8s $argc%-4s\n")
+          Writer.emitRule()
+        case Return =>
+          Writer.emit(f"\t${Console.YELLOW}return\n")
+          Writer.emitRule()
         case Print(n) =>
-          print(Console.RED)
-          print(s"\t@$n: ${RAM(n)}\t\t\t")
+          Writer.emit(s"\t${Console.RED} @$n: ${RAM(n)}\t\t\t")
       }
-      print(Console.BLUE)
-      println()
+      Writer.emit(Console.BLUE)
+      Writer.emitLn()
       showStack()
-      print(Console.WHITE)
+      Writer.emit(Console.WHITE)
       showStatics(20)
-      println()
+      Writer.emitLn()
       showRegisters()
-      println()
-      println()
-      cpu(ast.tail)
-    }
+      Writer.emitLn()
+      Writer.emitLn()
+      cpu(ast, nextip)
+    } else 0
   }
 
   private def gt() = {
-    print("\tgt  \t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}gt\n")
+    Writer.emitRule()
     val y = pop()
     val x = pop()
     push(bool(x < y))
   }
 
   private def lt() = {
-    print("\tlt  \t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}lt\n")
+    Writer.emitRule()
     val y = pop()
     val x = pop()
     push(bool(x > y))
   }
 
   private def eq() = {
-    print("\teq  \t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}eq\n")
+    Writer.emitRule()
     val y = pop()
     val x = pop()
     push(bool(x - y == 0))
   }
 
   private def neg() = {
-    print("\tneg \t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}neg\n")
+    Writer.emitRule()
     val x = pop()
     push(-x)
   }
 
   private def and() = {
-    print("\tand\t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}and\n")
+    Writer.emitRule()
     val x = pop()
     val y = pop()
     push(x & y)
   }
 
   private def not() = {
-    print("\tnot \t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}not\n")
+    Writer.emitRule()
     val D = pop()
     push(~D)
   }
 
   private def or() = {
-    print("\tor  \t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}or\n")
+    Writer.emitRule()
     val x = pop()
     val y = pop()
     push(x | y)
   }
 
   private def sub() = {
-    print("\tsub\t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}sub\n")
+    Writer.emitRule()
     val y = pop()
     val x = pop()
     push(x - y)
   }
 
   private def add() = {
-    print("\tadd\t\t\t\t\t")
+    Writer.emit(s"\t${Console.YELLOW}add\n")
+    Writer.emitRule()
     val x = pop()
     val y = pop()
     push(x + y)
   }
 
   def showRAM(r: Range) = r map { i => f"${RAM(i)}%04d" } mkString("[", ", ", "]")
-  def showStack() = println(f"\tstack    : ${showRAM(256 to (if (sp < 2047) sp - 1 else 2047))}%-16s")
-  def showStatics(n: Short = 240) = print(s"\tstatics  : ${showRAM((16 to 255).take(n))}")
-  def showRegisters() = print(f"\tregisters: ${showRAM(0 to 16)}")
+  def showStack() = Writer.emit(f"\tstack    : ${showRAM(256 to (if (sp < 2047) sp - 1 else 2047))}%-16s\n")
+  def showStatics(n: Short = 240) = Writer.emit(s"\tstatics  : ${showRAM((16 to 255).take(n))}")
+  def showRegisters() = Writer.emit(f"\tregisters: ${showRAM(0 to 16)}")
   def process(ast: List[Command]) = cpu(ast)
 }

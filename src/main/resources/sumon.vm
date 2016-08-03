@@ -1,0 +1,4 @@
+push constant 2
+push constant 3
+call sum 2
+pop static 0

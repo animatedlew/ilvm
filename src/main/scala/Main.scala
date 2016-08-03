@@ -16,7 +16,7 @@ object Main {
       val ast = p.run(fileReader)
       fileReader.close()
 
-      val runtime = new HackVM()
+      val runtime = new ILVM()
       runtime.process(ast)
 
       implicit val vm = new PrintWriter(asmFileName)
@@ -57,20 +57,9 @@ object Main {
   }
 
   def main(args: Array[String]) = {
-    println("Hack Translator \u00A9 2016")
+    println("IL Translator \u00A9 2016\n")
     if (args.length == 1) process(args.head, new File(args.head))
     else println(s"${Console.YELLOW}Usage: translator [file.vm|directory]")
   }
 
-  def bootStackedVM() = {
-    StackedVM(Vector[Assembly](
-      PUSH(), NUMBER(42),
-      PRINT(),
-      PUSH(), NUMBER(24),
-      PRINT(),
-      NOOP(), NOOP(), NOOP(),
-      PUSH(), NUMBER(1),
-      POP(),
-      HALT())).process()
-  }
 }

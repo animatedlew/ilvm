@@ -11,15 +11,11 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
 
   object Util {
     private var guid = 0
-    private var muid = 0
+    private var context = "method"
+    def setContext(ctx: String) = context = ctx
     def getId = {
-      val nextGUID = s"$namespace.$guid"
+      val nextGUID = s"$namespace.$context.$guid"
       guid += 1
-      nextGUID
-    }
-    def getId(method: String) = {
-      val nextGUID = s"$namespace.$method.$muid"
-      muid += 1
       nextGUID
     }
   }
@@ -198,14 +194,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
           Writer.emit(f"\n//\tpush\t$segment%-8s $index%-4s\n")
           Writer.emitRule()
           segment match {
-            case "constant" =>
-              Writer.emit(
-                s"""
-                |    @$index
-                |    D=A     // store constant
-                """.stripMargin
-              )
-              push()
+            case "constant" => pushConstant(index)
             case "static"   => getStatic(); push(index)
             case "local"    => getLocal();  push(index)
             case "argument" => getArg();    push(index)
@@ -215,7 +204,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
             case "pointer"  =>
               index match {
                 case 0 => getThis(); push()
-                case 1 => getThat();   push()
+                case 1 => getThat(); push()
                 case _ => throw new IllegalArgumentException
               }
             case _ => throw new IllegalArgumentException
@@ -248,9 +237,139 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
         case Eq  => eq()
         case Lt  => lt()
         case Gt  => gt()
+        case Label(value) => setLabel(value)
+        case If(label) => ifGoto(label)
+        case Goto(label) => goto(label)
+        case Call(name, argc) => call(name, argc)
+        case Function(name, argc) => function(name, argc)
+        case Return => ret()
       }
       cpu(ast.tail)
     }
+  }
+
+  private def setLabel(value: String) = {
+    Writer.emit(s"\n($value)\n")
+  }
+
+  def goto(address: String) = {
+    Writer.emit(f"\n//\tgoto \t$address%-8s\n")
+    Writer.emitRule()
+    Writer.emit(
+      s"""
+         |    @$address
+         |    0; JMP
+      """ stripMargin)
+  }
+
+  private def ifGoto(address: String) = {
+    Writer.emit(f"\n//\tgoto \t$address%-8s\n")
+    Writer.emitRule()
+    pop()
+    Writer.emit(
+      s"""
+        |    @$address
+        |    D; JNE      // jump if D is not zero
+      """ stripMargin)
+  }
+
+  private def call(function: String, argc: Short) = {
+    Writer.emit(f"\n//\tcall \t$function%-8s $argc%-4s\n")
+    Writer.emitRule()
+    val returnAddress = s"return.${Util.getId}"
+    Writer.emit(
+      s"""
+      |    @$returnAddress
+      |    D=A
+      """ stripMargin
+    )
+    push()
+    getLocal(); push(0)
+    getArg();   push(0)
+    getThis();  push(0)
+    getThat();  push(0)
+    Writer.emit(
+      s"""
+      |    @SP     // ARG = SP - $argc - 5
+      |    D=A
+      |    @$argc
+      |    D=D-A
+      |    @5      // offset stacked env
+      |    D=D-A
+      """ stripMargin)
+    push()
+    getArg(); pop(0)
+    Writer.emit(
+      s"""
+      |    @SP     // LCL = SP
+      |    D=A
+      """ stripMargin)
+    push()
+    getLocal(); pop(0)
+    goto(s"$namespace.$function")
+    setLabel(returnAddress)
+  }
+
+  def pushConstant(n: Short) = {
+    Writer.emit(
+      s"""
+      |    @$n
+      |    D=A     // store constant
+      """ stripMargin
+    )
+    push()
+  }
+
+  def function(name: String, argc: Short) = {
+    Writer.emit(f"\n//\tfunction \t$name%-8s $argc%-4s\n")
+    Writer.emitRule()
+    setLabel(name)
+    (0 until 2).foreach { _ => pushConstant(0) }
+  }
+
+  private def ret() = {
+    Writer.emit(f"\n//\treturn\n")
+    Writer.emitRule()
+    Writer.emit(
+      s"""
+      |    @LCL     // frame = local
+      |    D=M
+      |    @R5      // frame
+      |    M=D
+      |
+      |    @5       // return address = frame - 5
+      |    D=A
+      |    @R5
+      |    D=M-D
+      |    @R6      // return address
+      |    M=D
+      """ stripMargin
+    )
+    getArg(); pop()
+    Writer emit(
+      s"""
+      |    @SP
+      |    M=D+1    // set SP to arg + 1
+      |
+      |    @R5      // grab frame value
+      |    D=M
+      |
+      |    @THAT    // set *THAT to frame - 1
+      |    MD=D-1
+      |
+      |    @THIS    // set *THIS to frame - 2
+      |    MD=D-1
+      |
+      |    @ARG     // set *ARG to frame - 3
+      |    MD=D-1
+      |
+      |    @LCL     // set *LCL to frame - 4
+      |    MD=D-1
+      |
+      |    @R6      // jump to return address
+      |    M; JMP
+      """ stripMargin
+    )
   }
 
   private def gt() = {
