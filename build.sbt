@@ -1,4 +1,4 @@
-name := "StackedVM"
+name := "ILVM"
 
 version := "1.0"
 

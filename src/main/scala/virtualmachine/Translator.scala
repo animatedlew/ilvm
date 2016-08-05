@@ -12,6 +12,9 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   object Util {
     private var guid = 0
     private var context = "method"
+    private var _ctx = "method"
+    def storeContext() = _ctx = context
+    def restoreContext() = context = _ctx
     def setContext(ctx: String) = context = ctx
     def getId = {
       val nextGUID = s"$namespace.$context.$guid"
@@ -25,10 +28,10 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     def emitRule() = emit("//\t" + ("-"*20))
     def storeD(implicit f: PrintWriter) = {
       emit(
-        """
-         |    @R5
-         |    M=D     // store y
-        """ stripMargin
+      """
+      |    @R5
+      |    M=D     // store y
+      """ stripMargin
       )
     }
   }
@@ -38,7 +41,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   def getLocal() = {
     Writer.emit(
     """
-    @R1
+    @LCL
     D=M
     @R5
     M=D
@@ -51,7 +54,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   def getArg() = {
     Writer.emit(
     """
-    @R2
+    @ARG
     D=M
     @R5
     M=D
@@ -64,7 +67,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   def getThis() = {
     Writer.emit(
     """
-    @R3
+    @THIS
     D=M
     @R5
     M=D
@@ -75,7 +78,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   def setThis() = {
     Writer.emit(
     """
-    @R3
+    @THIS
     M=D
     """
     )
@@ -84,7 +87,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   def getThat() = {
     Writer.emit(
     """
-    @R4
+    @THAT
     D=M
     @R5
     M=D
@@ -95,7 +98,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   def setThat() = {
     Writer.emit(
     """
-    @R4
+    @THAT
     M=D
     """
     )
@@ -184,70 +187,6 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     )
   }
 
-  private def bool(condition: Boolean): Short = { if (condition) 0xFFFF else 0x0000 }
-
-  @tailrec private def cpu(ast: List[Command]): Unit = {
-    if (ast.nonEmpty) {
-      print(Console.YELLOW)
-      ast.head match {
-        case Push(segment, index) =>
-          Writer.emit(f"\n//\tpush\t$segment%-8s $index%-4s\n")
-          Writer.emitRule()
-          segment match {
-            case "constant" => pushConstant(index)
-            case "static"   => getStatic(); push(index)
-            case "local"    => getLocal();  push(index)
-            case "argument" => getArg();    push(index)
-            case "this"     => getThis();   push(index)
-            case "that"     => getThat();   push(index)
-            case "temp"     => getTemp();   push(index)
-            case "pointer"  =>
-              index match {
-                case 0 => getThis(); push()
-                case 1 => getThat(); push()
-                case _ => throw new IllegalArgumentException
-              }
-            case _ => throw new IllegalArgumentException
-          }
-        case Pop(segment, index) =>
-          Writer.emit(f"\n//\tpop \t$segment%-8s $index%-4s\n")
-          Writer.emitRule()
-
-          segment match {
-            case "static"   => getStatic(); pop(index)
-            case "local"    => getLocal();  pop(index)
-            case "argument" => getArg();    pop(index)
-            case "this"     => getThis();   pop(index)
-            case "that"     => getThat();   pop(index)
-            case "temp"     => getTemp();   pop(index)
-            case "pointer"  =>
-              index match {
-                case 0 => pop(); setThis()
-                case 1 => pop(); setThat()
-                case _ => throw new IllegalArgumentException
-              }
-            case _ => throw new IllegalArgumentException
-          }
-        case Add => add()
-        case Sub => sub()
-        case Neg => neg()
-        case And => and()
-        case Or  => or()
-        case Not => not()
-        case Eq  => eq()
-        case Lt  => lt()
-        case Gt  => gt()
-        case Label(value) => setLabel(value)
-        case If(label) => ifGoto(label)
-        case Goto(label) => goto(label)
-        case Call(name, argc) => call(name, argc)
-        case Function(name, argc) => function(name, argc)
-        case Return => ret()
-      }
-      cpu(ast.tail)
-    }
-  }
-
   private def setLabel(value: String) = {
     Writer.emit(s"\n($value)\n")
   }
@@ -257,8 +196,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     Writer.emitRule()
     Writer.emit(
       s"""
-         |    @$address
-         |    0; JMP
+      |    @$address
+      |    0; JMP
       """ stripMargin)
   }
 
@@ -268,14 +207,16 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     pop()
     Writer.emit(
       s"""
-        |    @$address
-        |    D; JNE      // jump if D is not zero
+      |    @$address
+      |    D; JNE      // jump if D is not zero
       """ stripMargin)
   }
 
   private def call(function: String, argc: Short) = {
     Writer.emit(f"\n//\tcall \t$function%-8s $argc%-4s\n")
     Writer.emitRule()
+    Util.storeContext()
+    Util.setContext(function)
     val returnAddress = s"return.${Util.getId}"
     Writer.emit(
       s"""
@@ -284,10 +225,31 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
       """ stripMargin
     )
     push()
-    getLocal(); push(0)
-    getArg();   push(0)
-    getThis();  push(0)
-    getThat();  push(0)
+    Writer.emit(
+      """
+      |    @LCL
+      |    D=M
+      """ stripMargin)
+    push()
+    Writer.emit(
+      """
+      |    @ARG
+      |    D=M
+      """ stripMargin)
+    push()
+    Writer.emit(
+      """
+      |    @THIS
+      |    D=M
+      """ stripMargin)
+    push()
+
+    Writer.emit(
+      """
+      |    @THAT
+      |    D=M
+      """ stripMargin)
+    push()
     Writer.emit(
       s"""
       |    @SP     // ARG = SP - $argc - 5
@@ -296,18 +258,19 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
       |    D=D-A
       |    @5      // offset stacked env
       |    D=D-A
+      |    @ARG
+      |    M=D
       """ stripMargin)
-    push()
-    getArg(); pop(0)
     Writer.emit(
       s"""
       |    @SP     // LCL = SP
-      |    D=A
+      |    D=M
+      |    @LCL
+      |    M=D
       """ stripMargin)
-    push()
-    getLocal(); pop(0)
     goto(s"$namespace.$function")
     setLabel(returnAddress)
+    Util.restoreContext()
   }
 
   def pushConstant(n: Short) = {
@@ -334,40 +297,63 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
       s"""
       |    @LCL     // frame = local
       |    D=M
-      |    @R5      // frame
+      |    @R5      // frame register
       |    M=D
       |
-      |    @5       // return address = frame - 5
-      |    D=A
-      |    @R5
-      |    D=M-D
-      |    @R6      // return address
+      |    D=A      // return address = frame - 5
+      |    A=M-D
+      |    D=M
+      |
+      |    @R6      // return address register
       |    M=D
       """ stripMargin
     )
-    getArg(); pop()
+    pop()
     Writer emit(
       s"""
+      |    @ARG
+      |    A=M      // dereference
+      |    M=D      // replace first arg with return value
+      |    D=A      // get arg pointer
+      |
       |    @SP
       |    M=D+1    // set SP to arg + 1
       |
       |    @R5      // grab frame value
       |    D=M
       |
+      |    AM=D-1
+      |    D=M
       |    @THAT    // set *THAT to frame - 1
-      |    MD=D-1
+      |    M=D
       |
+      |    @R5      // grab frame value
+      |    D=M
+      |
+      |    AM=D-1
+      |    D=M
       |    @THIS    // set *THIS to frame - 2
-      |    MD=D-1
+      |    M=D
       |
+      |    @R5      // grab frame value
+      |    D=M
+      |
+      |    AM=D-1
+      |    D=M
       |    @ARG     // set *ARG to frame - 3
-      |    MD=D-1
+      |    M=D
       |
+      |    @R5      // grab frame value
+      |    D=M
+      |
+      |    AM=D-1
+      |    D=M
       |    @LCL     // set *LCL to frame - 4
-      |    MD=D-1
+      |    M=D
       |
       |    @R6      // jump to return address
-      |    M; JMP
+      |    A=M
+      |    0; JMP
       """ stripMargin
     )
   }
@@ -545,6 +531,70 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
       """ stripMargin
     )
     push()
+  }
+
+  private def bool(condition: Boolean): Short = { if (condition) 0xFFFF else 0x0000 }
+
+  @tailrec private def cpu(ast: List[Command]): Unit = {
+    if (ast.nonEmpty) {
+      print(Console.YELLOW)
+      ast.head match {
+        case Push(segment, index) =>
+          Writer.emit(f"\n//\tpush\t$segment%-8s $index%-4s\n")
+          Writer.emitRule()
+          segment match {
+            case "constant" => pushConstant(index)
+            case "static"   => getStatic(); push(index)
+            case "local"    => getLocal();  push(index)
+            case "argument" => getArg();    push(index)
+            case "this"     => getThis();   push(index)
+            case "that"     => getThat();   push(index)
+            case "temp"     => getTemp();   push(index)
+            case "pointer"  =>
+              index match {
+                case 0 => getThis(); push()
+                case 1 => getThat(); push()
+                case _ => throw new IllegalArgumentException
+              }
+            case _ => throw new IllegalArgumentException
+          }
+        case Pop(segment, index) =>
+          Writer.emit(f"\n//\tpop \t$segment%-8s $index%-4s\n")
+          Writer.emitRule()
+
+          segment match {
+            case "static"   => getStatic(); pop(index)
+            case "local"    => getLocal();  pop(index)
+            case "argument" => getArg();    pop(index)
+            case "this"     => getThis();   pop(index)
+            case "that"     => getThat();   pop(index)
+            case "temp"     => getTemp();   pop(index)
+            case "pointer"  =>
+              index match {
+                case 0 => pop(); setThis()
+                case 1 => pop(); setThat()
+                case _ => throw new IllegalArgumentException
+              }
+            case _ => throw new IllegalArgumentException
+          }
+        case Add => add()
+        case Sub => sub()
+        case Neg => neg()
+        case And => and()
+        case Or  => or()
+        case Not => not()
+        case Eq  => eq()
+        case Lt  => lt()
+        case Gt  => gt()
+        case Label(value) => setLabel(value)
+        case If(label) => ifGoto(label)
+        case Goto(label) => goto(label)
+        case Call(name, argc) => call(name, argc)
+        case Function(name, argc) => function(name, argc)
+        case Return => ret()
+      }
+      cpu(ast.tail)
+    }
   }
 
   def process(ast: List[Command]) = cpu(ast)
