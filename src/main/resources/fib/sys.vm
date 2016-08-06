@@ -1,0 +1,5 @@
+function Sys.init 0
+push constant 4
+call main.fibonacci 1
+label end.while
+goto end.while

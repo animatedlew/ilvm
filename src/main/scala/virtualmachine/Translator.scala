@@ -11,13 +11,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
 
   object Util {
     private var guid = 0
-    private var context = "method"
-    private var _ctx = "method"
-    def storeContext() = _ctx = context
-    def restoreContext() = context = _ctx
-    def setContext(ctx: String) = context = ctx
     def getId = {
-      val nextGUID = s"$namespace.$context.$guid"
+      val nextGUID = s"$namespace.$guid"
       guid += 1
       nextGUID
     }
@@ -39,105 +34,97 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   var static = 16 // TODO: make this configurable
 
   def getLocal() = {
-    Writer.emit(
+    Writer emit
     """
     @LCL
     D=M
     @R5
     M=D
     """
-    )
   }
 
   //def local(value: Word) = RAM(1) = value
 
   def getArg() = {
-    Writer.emit(
+    Writer emit
     """
     @ARG
     D=M
     @R5
     M=D
     """
-    )
   }
 
   //def arg(value: Word) = RAM(2) = value
 
   def getThis() = {
-    Writer.emit(
+    Writer emit
     """
     @THIS
     D=M
     @R5
     M=D
     """
-    )
   }
 
   def setThis() = {
-    Writer.emit(
+    Writer emit
     """
     @THIS
     M=D
     """
-    )
   }
 
   def getThat() = {
-    Writer.emit(
+    Writer emit
     """
     @THAT
     D=M
     @R5
     M=D
     """
-    )
   }
 
   def setThat() = {
-    Writer.emit(
+    Writer emit
     """
     @THAT
     M=D
     """
-    )
   }
 
   def getStatic() = {
-    Writer.emit(
+    Writer emit
     s"""
     @$static
     D=A
     @R5
     M=D
     """
-    )
   }
+
   def getTemp() = {
-    Writer.emit(
+    Writer emit
     """
     @5
     D=A
     @R5
     M=D
     """
-    )
   }
 
   private def pop(): Unit = {
-    Writer.emit(
+    Writer emit
     """
     //======= pop() =======//
     @SP
-    AM=M-1  // dec stack/memory pointer
-    D=M     // return value in 'D'
+    AM=M-1   // dec stack/memory pointer
+    D=M      // return value in 'D'
     """
-    )
   }
 
   private def push(): Unit = {
-    Writer.emit(
+    Writer emit
     """
     //======= push(D) =======//
     @SP
@@ -146,11 +133,10 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     @SP
     M=M+1   // inc stack pointer
     """
-    )
   }
 
   private def push(index: Word): Unit = {
-    Writer.emit(
+    Writer emit
     s"""
     //======= push(bp, index) =======//
     @R5     // used for bp
@@ -161,13 +147,12 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     A=D     // sum of bp + index
     D=M     // get value @ pointer
     """
-    )
     push()
   }
 
   private def pop(index: Word): Unit = {
     pop()
-    Writer.emit(
+    Writer emit
     s"""
     //======= pop(R5, R6) =======//
     @R7     // store popped value
@@ -184,294 +169,297 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     A=M     // grab RAM pointer
     M=D     // store value into heap
     """
-    )
   }
 
   private def setLabel(value: String) = {
-    Writer.emit(s"\n($value)\n")
+    Writer emit s"\n($value)\n"
   }
 
   def goto(address: String) = {
-    Writer.emit(f"\n//\tgoto \t$address%-8s\n")
-    Writer.emitRule()
-    Writer.emit(
-      s"""
-      |    @$address
-      |    0; JMP
-      """ stripMargin)
+    Writer emit f"\n//\tgoto \t$address%-8s\n"
+    Writer emitRule()
+    Writer emit
+    s"""
+    @$address
+    0; JMP
+    """
   }
 
   private def ifGoto(address: String) = {
-    Writer.emit(f"\n//\tgoto \t$address%-8s\n")
-    Writer.emitRule()
+    Writer emit f"\n//\tgoto \t$address%-8s\n"
+    Writer emitRule()
     pop()
-    Writer.emit(
-      s"""
-      |    @$address
-      |    D; JNE      // jump if D is not zero
-      """ stripMargin)
+    Writer emit
+    s"""
+    @$address
+    D; JNE      // jump if D is not zero
+    """
+  }
+
+  def bootstrap() = {
+    Writer emit
+    s"""
+    @256
+    D=A
+    @SP
+    M=D
+    """
+    call("Sys.init", 0)
+    Writer emit
+    s"""
+    (sys.end.loop)
+    @sys.end.loop
+    0; JMP
+    """
   }
 
   private def call(function: String, argc: Short) = {
-    Writer.emit(f"\n//\tcall \t$function%-8s $argc%-4s\n")
-    Writer.emitRule()
-    Util.storeContext()
-    Util.setContext(function)
+    Writer emit f"\n//\tcall \t$function%-8s $argc%-4s\n"
+    Writer emitRule()
     val returnAddress = s"return.${Util.getId}"
-    Writer.emit(
-      s"""
-      |    @$returnAddress
-      |    D=A
-      """ stripMargin
-    )
+    Writer emit
+    s"""
+    @$returnAddress
+    D=A
+    """
     push()
-    Writer.emit(
-      """
-      |    @LCL
-      |    D=M
-      """ stripMargin)
+    Writer emit
+    """
+    @LCL
+    D=M
+    """
     push()
-    Writer.emit(
-      """
-      |    @ARG
-      |    D=M
-      """ stripMargin)
+    Writer emit
+    """
+    @ARG
+    D=M
+    """
     push()
-    Writer.emit(
-      """
-      |    @THIS
-      |    D=M
-      """ stripMargin)
+    Writer emit
+    """
+    @THIS
+    D=M
+    """
     push()
-
-    Writer.emit(
-      """
-      |    @THAT
-      |    D=M
-      """ stripMargin)
+    Writer emit
+    """
+    @THAT
+    D=M
+    """
     push()
-    Writer.emit(
-      s"""
-      |    @SP     // ARG = SP - $argc - 5
-      |    D=A
-      |    @$argc
-      |    D=D-A
-      |    @5      // offset stacked env
-      |    D=D-A
-      |    @ARG
-      |    M=D
-      """ stripMargin)
-    Writer.emit(
-      s"""
-      |    @SP     // LCL = SP
-      |    D=M
-      |    @LCL
-      |    M=D
-      """ stripMargin)
-    goto(s"$namespace.$function")
+    Writer emit
+    s"""
+    @SP     // ARG = SP - $argc - 5
+    D=M
+    @$argc
+    D=D-A
+    @5      // offset stacked env
+    D=D-A
+    @ARG
+    M=D
+    """
+    Writer emit
+    s"""
+    @SP     // LCL = SP
+    D=M
+    @LCL
+    M=D
+    """
+    goto(function)
     setLabel(returnAddress)
-    Util.restoreContext()
   }
 
   def pushConstant(n: Short) = {
-    Writer.emit(
-      s"""
-      |    @$n
-      |    D=A     // store constant
-      """ stripMargin
-    )
+    Writer emit
+    s"""
+    @$n
+    D=A     // store constant
+    """
     push()
   }
 
   def function(name: String, argc: Short) = {
-    Writer.emit(f"\n//\tfunction \t$name%-8s $argc%-4s\n")
-    Writer.emitRule()
+    Writer emit f"\n//\tfunction \t$name%-8s $argc%-4s\n"
+    Writer emitRule()
     setLabel(name)
-    (0 until 2).foreach { _ => pushConstant(0) }
+    (0 until argc).foreach { _ => pushConstant(0) }
   }
 
   private def ret() = {
-    Writer.emit(f"\n//\treturn\n")
-    Writer.emitRule()
-    Writer.emit(
-      s"""
-      |    @LCL     // frame = local
-      |    D=M
-      |    @R5      // frame register
-      |    M=D
-      |
-      |    D=A      // return address = frame - 5
-      |    A=M-D
-      |    D=M
-      |
-      |    @R6      // return address register
-      |    M=D
-      """ stripMargin
-    )
+    Writer emit f"\n//\treturn\n"
+    Writer emitRule()
+    Writer emit
+    """
+    @LCL     // frame = local
+    D=M
+    @R5      // frame register
+    M=D
+
+    D=A      // return address = frame - 5
+    A=M-D
+    D=M
+
+    @R6      // return address register
+    M=D
+    """
     pop()
-    Writer emit(
-      s"""
-      |    @ARG
-      |    A=M      // dereference
-      |    M=D      // replace first arg with return value
-      |    D=A      // get arg pointer
-      |
-      |    @SP
-      |    M=D+1    // set SP to arg + 1
-      |
-      |    @R5      // grab frame value
-      |    D=M
-      |
-      |    AM=D-1
-      |    D=M
-      |    @THAT    // set *THAT to frame - 1
-      |    M=D
-      |
-      |    @R5      // grab frame value
-      |    D=M
-      |
-      |    AM=D-1
-      |    D=M
-      |    @THIS    // set *THIS to frame - 2
-      |    M=D
-      |
-      |    @R5      // grab frame value
-      |    D=M
-      |
-      |    AM=D-1
-      |    D=M
-      |    @ARG     // set *ARG to frame - 3
-      |    M=D
-      |
-      |    @R5      // grab frame value
-      |    D=M
-      |
-      |    AM=D-1
-      |    D=M
-      |    @LCL     // set *LCL to frame - 4
-      |    M=D
-      |
-      |    @R6      // jump to return address
-      |    A=M
-      |    0; JMP
-      """ stripMargin
-    )
+    Writer emit
+    """
+    @ARG
+    A=M      // dereference
+    M=D      // replace first arg with return value
+    D=A      // get arg pointer
+
+    @SP
+    M=D+1    // set SP to arg + 1
+
+    @R5      // grab frame value
+    D=M
+
+    AM=D-1
+    D=M
+    @THAT    // set *THAT to frame - 1
+    M=D
+
+    @R5      // grab frame value
+    D=M
+
+    AM=D-1
+    D=M
+    @THIS    // set *THIS to frame - 2
+    M=D
+
+    @R5      // grab frame value
+    D=M
+
+    AM=D-1
+    D=M
+    @ARG     // set *ARG to frame - 3
+    M=D
+
+    @R5      // grab frame value
+    D=M
+
+    AM=D-1
+    D=M
+    @LCL     // set *LCL to frame - 4
+    M=D
+
+    @R6      // jump to return address
+    A=M
+    0; JMP
+    """
   }
 
   private def gt() = {
-    Writer.emit("\n//\tgt\n")
-    Writer.emitRule()
+    Writer emit "\n//\tgt\n"
+    Writer emitRule()
     pop()
     Writer.storeD
     pop()
     val isGreaterThanLabel = s"is.greater.than.${Util.getId}"
     val isNotGreaterThanLabel = s"is.not.greater.than.${Util.getId}"
     val endIsGreaterThanLabel = s"end.is.greater.than.${Util.getId}"
-    Writer.emit(
-      s"""
-      |    @R5
-      |    D=D-M    // add x - y
-      |    @$isGreaterThanLabel
-      |    D; JGT
-      |
-      |($isNotGreaterThanLabel)
-      |    D=0
-      |    @$endIsGreaterThanLabel
-      |    0; JMP
-      |
-      |($isGreaterThanLabel)
-      |    D=-1
-      |
-      |($endIsGreaterThanLabel)
-      """ stripMargin
-    )
+    Writer emit
+    s"""
+    @R5
+    D=D-M    // add x - y
+    @$isGreaterThanLabel
+    D; JGT
+
+    ($isNotGreaterThanLabel)
+    D=0
+    @$endIsGreaterThanLabel
+    0; JMP
+
+    ($isGreaterThanLabel)
+    D=-1
+
+    ($endIsGreaterThanLabel)
+    """
     push()
   }
 
   private def lt() = {
-    Writer.emit("\n//\tlt\n")
-    Writer.emitRule()
+    Writer emit "\n//\tlt\n"
+    Writer emitRule()
     pop()
     Writer.storeD
     pop()
     val isLessThanLabel = s"is.less.than.${Util.getId}"
     val isNotLessThanLabel = s"is.not.less.than.${Util.getId}"
     val endIsLessThanLabel = s"end.is.less.than.${Util.getId}"
-    Writer.emit(
-      s"""
-      |    @R5
-      |    D=D-M    // add x - y
-      |    @$isLessThanLabel
-      |    D; JLT
-      |
-      |($isNotLessThanLabel)
-      |    D=0
-      |    @$endIsLessThanLabel
-      |    0; JMP
-      |
-      |($isLessThanLabel)
-      |    D=-1
-      |
-      |($endIsLessThanLabel)
-      """ stripMargin
-    )
+    Writer emit
+    s"""
+    @R5
+    D=D-M    // add x - y
+    @$isLessThanLabel
+    D; JLT
+
+    ($isNotLessThanLabel)
+    D=0
+    @$endIsLessThanLabel
+    0; JMP
+
+    ($isLessThanLabel)
+    D=-1
+
+    ($endIsLessThanLabel)
+    """
     push()
   }
 
   private def eq() = {
-    Writer.emit("\n//\teq\n")
-    Writer.emitRule()
+    Writer emit "\n//\teq\n"
+    Writer emitRule()
     pop()
     Writer.storeD
     pop()
     val isEqualLabel = s"is.equal.${Util.getId}"
     val isNotEqualLabel = s"is.not.equal.${Util.getId}"
     val endIsEqualLabel = s"end.is.equal.${Util.getId}"
-    Writer.emit(
-      s"""
-      |    @R5
-      |    D=D-M    // add x - y
-      |    @$isEqualLabel
-      |    D; JEQ
-      |
-      |($isNotEqualLabel)
-      |    D=0
-      |    @$endIsEqualLabel
-      |    0; JMP
-      |
-      |($isEqualLabel)
-      |    D=-1
-      |
-      |($endIsEqualLabel)
-      """ stripMargin
-    )
+    Writer emit
+    s"""
+    @R5
+    D=D-M    // add x - y
+    @$isEqualLabel
+    D; JEQ
+
+    ($isNotEqualLabel)
+    D=0
+    @$endIsEqualLabel
+    0; JMP
+
+    ($isEqualLabel)
+    D=-1
+
+    ($endIsEqualLabel)
+    """
     push()
   }
 
   private def neg() = {
-    Writer.emit("\n//\tneg\n")
-    Writer.emitRule()
+    Writer emit "\n//\tneg\n"
+    Writer emitRule()
     pop()
-    Writer.emit(
-      """
-      |    D=-D    // store -x
-      """ stripMargin
-    )
+    Writer emit
+    """
+    D=-D    // store -x
+    """
     push()
   }
 
   private def and() = {
-    Writer.emit("\n//\tand\n")
-    Writer.emitRule()
+    Writer emit "\n//\tand\n"
+    Writer emitRule()
     pop()
     Writer.storeD
     pop()
-    Writer.emit(
-      s"""
-      |    @R5
-      |    D=D&M    // add x & y
-      """ stripMargin
-    )
+    Writer emit
+    """
+    @R5
+    D=D&M    // add x & y
+    """
     push()
   }
 
@@ -479,12 +467,11 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     Writer.emit("\n//\tnot\n")
     Writer.emitRule()
     pop()
-    Writer.emit(
-      s"""
-      |    D=-D
-      |    D=D-1    // store ~x
-      """ stripMargin
-    )
+    Writer emit
+    s"""
+    D=-D
+    D=D-1    // store ~x
+    """
     push()
   }
 
@@ -494,42 +481,39 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     pop()
     Writer.storeD
     pop()
-    Writer.emit(
-      """
-      |    @R5
-      |    D=D|M    // add x | y
-      """ stripMargin
-    )
+    Writer emit
+    """
+    @R5
+    D=D|M    // add x | y
+    """
     push()
   }
 
   private def sub() = {
-    Writer.emit("\n//\tsub\n")
-    Writer.emitRule()
+    Writer emit "\n//\tsub\n"
+    Writer emitRule()
     pop()
     Writer.storeD
     pop()
-    Writer.emit(
-      """
-      |    @R5
-      |    D=D-M    // add x - y
-      """ stripMargin
-    )
+    Writer emit
+    """
+    @R5
+    D=D-M    // add x - y
+    """
     push()
   }
 
   private def add() = {
-    Writer.emit("\n//\tadd\n")
-    Writer.emitRule()
+    Writer emit "\n//\tadd\n"
+    Writer emitRule()
     pop()
     Writer.storeD
     pop()
-    Writer.emit(
-      s"""
-      |    @R5
-      |    D=D+M    // add x + y
-      """ stripMargin
-    )
+    Writer emit
+    """
+    @R5
+    D=D+M    // add x + y
+    """
     push()
   }
 
@@ -540,8 +524,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
       print(Console.YELLOW)
       ast.head match {
         case Push(segment, index) =>
-          Writer.emit(f"\n//\tpush\t$segment%-8s $index%-4s\n")
-          Writer.emitRule()
+          Writer emit f"\n//\tpush\t$segment%-8s $index%-4s\n"
+          Writer emitRule()
           segment match {
             case "constant" => pushConstant(index)
             case "static"   => getStatic(); push(index)
@@ -559,8 +543,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
             case _ => throw new IllegalArgumentException
           }
         case Pop(segment, index) =>
-          Writer.emit(f"\n//\tpop \t$segment%-8s $index%-4s\n")
-          Writer.emitRule()
+          Writer emit f"\n//\tpop \t$segment%-8s $index%-4s\n"
+          Writer emitRule()
 
           segment match {
             case "static"   => getStatic(); pop(index)
@@ -586,9 +570,9 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
         case Eq  => eq()
         case Lt  => lt()
         case Gt  => gt()
-        case Label(value) => setLabel(value)
-        case If(label) => ifGoto(label)
-        case Goto(label) => goto(label)
+        case Label(value) => setLabel(s"$namespace.$value")
+        case If(label) => ifGoto(s"$namespace.$label")
+        case Goto(label) => goto(s"$namespace.$label")
         case Call(name, argc) => call(name, argc)
         case Function(name, argc) => function(name, argc)
         case Return => ret()
@@ -597,5 +581,5 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     }
   }
 
-  def process(ast: List[Command]) = cpu(ast)
+  def process(ast: List[Command]): Unit = cpu(ast)
 }

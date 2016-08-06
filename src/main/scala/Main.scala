@@ -1,5 +1,6 @@
 import java.io.{File, FileReader, PrintWriter}
 import scala.io.Source
+import language.postfixOps
 import virtualmachine._
 
 object Main {
@@ -43,6 +44,9 @@ object Main {
       val asmFiles = new File(arg).listFiles.filter { f =>
         f.isFile && f.getName.endsWith("asm") && !outFileName.endsWith(f.getName)
       }
+
+      new Translator("bootstrap")(outFile).bootstrap()
+
       println("out: ")
       asmFiles foreach { println(_) }
       val asm = asmFiles.foldLeft(""){ case (out, file) =>

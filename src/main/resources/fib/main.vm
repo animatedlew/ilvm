@@ -1,4 +1,4 @@
-function Main.fibonacci 0
+function main.fibonacci 0
 push argument 0
 push constant 2
 lt                     // check if n < 2
@@ -11,10 +11,10 @@ label IF_FALSE         // if n>=2, return fib(n-2)+fib(n-1)
 push argument 0
 push constant 2
 sub
-call Main.fibonacci 1  // compute fib(n-2)
+call main.fibonacci 1  // compute fib(n-2)
 push argument 0
 push constant 1
 sub
-call Main.fibonacci 1  // compute fib(n-1)
+call main.fibonacci 1  // compute fib(n-1)
 add                    // return fib(n-1) + fib(n-2)
 return
