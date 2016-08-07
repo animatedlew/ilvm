@@ -153,7 +153,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     Writer emit
     s"""
     //======= pop(R13) =======//
-    @R7     // store popped value
+    @R14    // store popped value
     M=D
     @R13    // used for bp
     D=M
@@ -161,7 +161,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     D=D+A   // 'A' register used for index
     @R13    // overwrite bp
     M=D     // sum of bp + index
-    @R7
+    @R14
     D=M     // popped value
     @R13
     A=M     // grab RAM pointer
@@ -299,7 +299,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     A=M-D
     D=M
 
-    @R6     // return address register
+    @R14    // return address register
     M=D
     """
     pop()
@@ -345,7 +345,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     @LCL    // set *LCL to frame - 4
     M=D
 
-    @R6     // jump to return address
+    @R14    // jump to return address
     A=M
     0; JMP
     """
