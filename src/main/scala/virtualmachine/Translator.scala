@@ -22,7 +22,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     def storeD(implicit f: PrintWriter) = {
       emit(
       """
-      |    @R5
+      |    @R13
       |    M=D     // store y
       """ stripMargin
       )
@@ -36,7 +36,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     @LCL
     D=M
-    @R5
+    @R13
     M=D
     """
   }
@@ -48,7 +48,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     @ARG
     D=M
-    @R5
+    @R13
     M=D
     """
   }
@@ -60,7 +60,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     @THIS
     D=M
-    @R5
+    @R13
     M=D
     """
   }
@@ -78,7 +78,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     @THAT
     D=M
-    @R5
+    @R13
     M=D
     """
   }
@@ -96,7 +96,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     s"""
     @$static
     D=A
-    @R5
+    @R13
     M=D
     """
   }
@@ -106,7 +106,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     @5
     D=A
-    @R5
+    @R13
     M=D
     """
   }
@@ -116,8 +116,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     //======= pop() =======//
     @SP
-    AM=M-1   // dec stack/memory pointer
-    D=M      // return value in 'D'
+    AM=M-1  // dec stack/memory pointer
+    D=M     // return value in 'D'
     """
   }
 
@@ -137,11 +137,11 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     Writer emit
     s"""
     //======= push(bp, index) =======//
-    @R5     // used for bp
+    @R13    // used for bp
     D=M
     @$index
     D=D+A   // 'A' register used for index
-    @R5     // overwrite bp
+    @R13    // overwrite bp
     A=D     // sum of bp + index
     D=M     // get value @ pointer
     """
@@ -152,18 +152,18 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     pop()
     Writer emit
     s"""
-    //======= pop(R5, R6) =======//
+    //======= pop(R13) =======//
     @R7     // store popped value
     M=D
-    @R5     // used for bp
+    @R13    // used for bp
     D=M
     @$index
     D=D+A   // 'A' register used for index
-    @R5     // overwrite bp
+    @R13    // overwrite bp
     M=D     // sum of bp + index
     @R7
     D=M     // popped value
-    @R5
+    @R13
     A=M     // grab RAM pointer
     M=D     // store value into heap
     """
@@ -190,7 +190,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     Writer emit
     s"""
     @$address
-    D; JNE      // jump if D is not zero
+    D; JNE  // jump if D is not zero
     """
   }
 
@@ -288,62 +288,64 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     Writer emitRule()
     Writer emit
     """
-    @LCL     // frame = local
+    @LCL    // frame = local
     D=M
-    @R5      // frame register
+    @R13    // frame register
     M=D
 
-    D=A      // return address = frame - 5
+    @5
+    D=A     // return address = frame - 5
+    @R13
     A=M-D
     D=M
 
-    @R6      // return address register
+    @R6     // return address register
     M=D
     """
     pop()
     Writer emit
     """
     @ARG
-    A=M      // dereference
-    M=D      // replace first arg with return value
-    D=A      // get arg pointer
+    A=M     // dereference
+    M=D     // replace first arg with return value
+    D=A     // get arg pointer
 
     @SP
-    M=D+1    // set SP to arg + 1
+    M=D+1   // set SP to arg + 1
 
-    @R5      // grab frame value
+    @R13    // grab frame value
     D=M
 
     AM=D-1
     D=M
-    @THAT    // set *THAT to frame - 1
+    @THAT   // set *THAT to frame - 1
     M=D
 
-    @R5      // grab frame value
+    @R13    // grab frame value
     D=M
 
     AM=D-1
     D=M
-    @THIS    // set *THIS to frame - 2
+    @THIS   // set *THIS to frame - 2
     M=D
 
-    @R5      // grab frame value
+    @R13    // grab frame value
     D=M
 
     AM=D-1
     D=M
-    @ARG     // set *ARG to frame - 3
+    @ARG    // set *ARG to frame - 3
     M=D
 
-    @R5      // grab frame value
+    @R13    // grab frame value
     D=M
 
     AM=D-1
     D=M
-    @LCL     // set *LCL to frame - 4
+    @LCL    // set *LCL to frame - 4
     M=D
 
-    @R6      // jump to return address
+    @R6     // jump to return address
     A=M
     0; JMP
     """
@@ -360,8 +362,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     val endIsGreaterThanLabel = s"end.is.greater.than.${Util.getId}"
     Writer emit
     s"""
-    @R5
-    D=D-M    // add x - y
+    @R13
+    D=D-M   // add x - y
     @$isGreaterThanLabel
     D; JGT
 
@@ -389,8 +391,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     val endIsLessThanLabel = s"end.is.less.than.${Util.getId}"
     Writer emit
     s"""
-    @R5
-    D=D-M    // add x - y
+    @R13
+    D=D-M   // add x - y
     @$isLessThanLabel
     D; JLT
 
@@ -418,8 +420,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     val endIsEqualLabel = s"end.is.equal.${Util.getId}"
     Writer emit
     s"""
-    @R5
-    D=D-M    // add x - y
+    @R13
+    D=D-M   // add x - y
     @$isEqualLabel
     D; JEQ
 
@@ -455,8 +457,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     pop()
     Writer emit
     """
-    @R5
-    D=D&M    // add x & y
+    @R13
+    D=D&M   // add x & y
     """
     push()
   }
@@ -468,7 +470,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     Writer emit
     s"""
     D=-D
-    D=D-1    // store ~x
+    D=D-1   // store ~x
     """
     push()
   }
@@ -481,8 +483,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     pop()
     Writer emit
     """
-    @R5
-    D=D|M    // add x | y
+    @R13
+    D=D|M   // add x | y
     """
     push()
   }
@@ -495,8 +497,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     pop()
     Writer emit
     """
-    @R5
-    D=D-M    // add x - y
+    @R13
+    D=D-M   // add x - y
     """
     push()
   }
@@ -509,8 +511,8 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     pop()
     Writer emit
     """
-    @R5
-    D=D+M    // add x + y
+    @R13
+    D=D+M   // add x + y
     """
     push()
   }
