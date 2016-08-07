@@ -1,9 +1,7 @@
 package virtualmachine
 
 import java.io.PrintWriter
-
 import virtualmachine.AST._
-
 import scala.annotation.tailrec
 import scala.language.postfixOps
 
