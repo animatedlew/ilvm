@@ -7,7 +7,7 @@ import scala.language.postfixOps
 
 class Translator(namespace: String = "global")(implicit f: PrintWriter) {
 
-  object Util {
+  private object Util {
     private var guid = 0
     def getId = {
       val nextGUID = s"$namespace.$guid"
@@ -16,7 +16,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     }
   }
 
-  object Writer {
+  private object Writer {
     def emit(s: String)(implicit f: PrintWriter) = f.write(s)
     def emitRule() = emit("//\t" + ("-"*20))
     def storeD(implicit f: PrintWriter) = {
@@ -29,9 +29,17 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     }
   }
 
-  var static = 16 // TODO: make this configurable
+  object Registers extends Enumeration {
+    val SP = Value("SP")
+    val LCL = Value("LCL")
+    val ARG = Value("ARG")
+    val THIS = Value("THIS")
+    val THAT = Value("THAT")
+    val TEMP = Value("TEMP")
+  }
 
-  def getLocal() = {
+  // TODO: condense these base actions using Registers enum
+  private def baseLocal() = {
     Writer emit
     """
     @LCL
@@ -41,9 +49,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
   }
 
-  //def local(value: Word) = RAM(1) = value
-
-  def getArg() = {
+  private def baseArg() = {
     Writer emit
     """
     @ARG
@@ -53,9 +59,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
   }
 
-  //def arg(value: Word) = RAM(2) = value
-
-  def getThis() = {
+  def baseThis() = {
     Writer emit
     """
     @THIS
@@ -65,7 +69,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
   }
 
-  def setThis() = {
+  def updateThis() = {
     Writer emit
     """
     @THIS
@@ -73,7 +77,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
   }
 
-  def getThat() = {
+  private def baseThat() = {
     Writer emit
     """
     @THAT
@@ -83,7 +87,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
   }
 
-  def setThat() = {
+  private def updateThat() = {
     Writer emit
     """
     @THAT
@@ -91,17 +95,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
   }
 
-  def getStatic() = {
-    Writer emit
-    s"""
-    @$static
-    D=A
-    @R13
-    M=D
-    """
-  }
-
-  def getTemp() = {
+  private def baseTemp() = {
     Writer emit
     """
     @5
@@ -167,6 +161,38 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     A=M     // grab RAM pointer
     M=D     // store value into heap
     """
+  }
+
+  private def popStatic(index: Word): Unit = {
+    Writer emit
+    s"""
+    @$namespace.$index
+    D=A
+    @R13
+    M=D
+    """
+    pop(index)
+  }
+
+  private def pushStatic(index: Word): Unit = {
+    Writer emit
+    s"""
+    @$namespace.$index
+    D=A
+    @R13
+    M=D
+    """
+    push(index)
+  }
+
+
+  def pushConstant(n: Short) = {
+    Writer emit
+    s"""
+    @$n
+    D=A     // store constant
+    """
+    push()
   }
 
   private def setLabel(value: String) = {
@@ -265,15 +291,6 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     goto(function)
     setLabel(returnAddress)
-  }
-
-  def pushConstant(n: Short) = {
-    Writer emit
-    s"""
-    @$n
-    D=A     // store constant
-    """
-    push()
   }
 
   def function(name: String, argc: Short) = {
@@ -528,16 +545,16 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
           Writer emitRule()
           segment match {
             case "constant" => pushConstant(index)
-            case "static"   => getStatic(); push(index)
-            case "local"    => getLocal();  push(index)
-            case "argument" => getArg();    push(index)
-            case "this"     => getThis();   push(index)
-            case "that"     => getThat();   push(index)
-            case "temp"     => getTemp();   push(index)
+            case "static"   => pushStatic(index) //getStatic(); push(index)
+            case "local"    => baseLocal();  push(index)
+            case "argument" => baseArg();    push(index)
+            case "this"     => baseThis();   push(index)
+            case "that"     => baseThat();   push(index)
+            case "temp"     => baseTemp();   push(index)
             case "pointer"  =>
               index match {
-                case 0 => getThis(); push()
-                case 1 => getThat(); push()
+                case 0 => baseThis(); push()
+                case 1 => baseThat(); push()
                 case _ => throw new IllegalArgumentException
               }
             case _ => throw new IllegalArgumentException
@@ -547,16 +564,16 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
           Writer emitRule()
 
           segment match {
-            case "static"   => getStatic(); pop(index)
-            case "local"    => getLocal();  pop(index)
-            case "argument" => getArg();    pop(index)
-            case "this"     => getThis();   pop(index)
-            case "that"     => getThat();   pop(index)
-            case "temp"     => getTemp();   pop(index)
+            case "static"   => popStatic(index) //getStatic(); pop(index)
+            case "local"    => baseLocal();  pop(index)
+            case "argument" => baseArg();    pop(index)
+            case "this"     => baseThis();   pop(index)
+            case "that"     => baseThat();   pop(index)
+            case "temp"     => baseTemp();   pop(index)
             case "pointer"  =>
               index match {
-                case 0 => pop(); setThis()
-                case 1 => pop(); setThat()
+                case 0 => pop(); updateThis()
+                case 1 => pop(); updateThat()
                 case _ => throw new IllegalArgumentException
               }
             case _ => throw new IllegalArgumentException
