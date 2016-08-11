@@ -30,59 +30,27 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
   }
 
   object Registers extends Enumeration {
-    val SP = Value("SP")
-    val LCL = Value("LCL")
-    val ARG = Value("ARG")
+    val SP   = Value("SP")
+    val LCL  = Value("LCL")
+    val ARG  = Value("ARG")
     val THIS = Value("THIS")
     val THAT = Value("THAT")
-    val TEMP = Value("TEMP")
   }
 
-  // TODO: condense these base actions using Registers enum
-  private def baseLocal() = {
+  private def base(reg: Registers.Value) = {
     Writer emit
-    """
-    @LCL
+    s"""
+    @$reg
     D=M
     @R13
     M=D
     """
   }
 
-  private def baseArg() = {
-    Writer emit
-    """
-    @ARG
-    D=M
-    @R13
-    M=D
-    """
-  }
-
-  def baseThis() = {
+  private def updateThis() = {
     Writer emit
     """
     @THIS
-    D=M
-    @R13
-    M=D
-    """
-  }
-
-  def updateThis() = {
-    Writer emit
-    """
-    @THIS
-    M=D
-    """
-  }
-
-  private def baseThat() = {
-    Writer emit
-    """
-    @THAT
-    D=M
-    @R13
     M=D
     """
   }
@@ -171,7 +139,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     @R13
     M=D
     """
-    pop(index)
+    pop(0) // TODO: expand this to avoid addition
   }
 
   private def pushStatic(index: Word): Unit = {
@@ -182,7 +150,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     @R13
     M=D
     """
-    push(index)
+    push(0) // TODO: expand this to avoid subtraction
   }
 
 
@@ -543,18 +511,19 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
         case Push(segment, index) =>
           Writer emit f"\n//\tpush\t$segment%-8s $index%-4s\n"
           Writer emitRule()
+          import Registers._
           segment match {
             case "constant" => pushConstant(index)
-            case "static"   => pushStatic(index) //getStatic(); push(index)
-            case "local"    => baseLocal();  push(index)
-            case "argument" => baseArg();    push(index)
-            case "this"     => baseThis();   push(index)
-            case "that"     => baseThat();   push(index)
-            case "temp"     => baseTemp();   push(index)
+            case "static"   => pushStatic(index)
+            case "local"    => base(LCL);  push(index)
+            case "argument" => base(ARG);  push(index)
+            case "this"     => base(THIS); push(index)
+            case "that"     => base(THAT); push(index)
+            case "temp"     => baseTemp(); push(index)
             case "pointer"  =>
               index match {
-                case 0 => baseThis(); push()
-                case 1 => baseThat(); push()
+                case 0 => base(THIS); push()
+                case 1 => base(THAT); push()
                 case _ => throw new IllegalArgumentException
               }
             case _ => throw new IllegalArgumentException
@@ -562,14 +531,14 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
         case Pop(segment, index) =>
           Writer emit f"\n//\tpop \t$segment%-8s $index%-4s\n"
           Writer emitRule()
-
+          import Registers._
           segment match {
-            case "static"   => popStatic(index) //getStatic(); pop(index)
-            case "local"    => baseLocal();  pop(index)
-            case "argument" => baseArg();    pop(index)
-            case "this"     => baseThis();   pop(index)
-            case "that"     => baseThat();   pop(index)
-            case "temp"     => baseTemp();   pop(index)
+            case "static"   => popStatic(index)
+            case "local"    => base(LCL);  pop(index)
+            case "argument" => base(ARG);  pop(index)
+            case "this"     => base(THIS); pop(index)
+            case "that"     => base(THAT); pop(index)
+            case "temp"     => baseTemp(); pop(index)
             case "pointer"  =>
               index match {
                 case 0 => pop(); updateThis()
