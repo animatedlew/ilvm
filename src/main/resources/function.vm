@@ -1,0 +1,22 @@
+
+function sub 2
+    push argument 0
+    pop local 0
+    push argument 1
+    pop local 1
+    sub
+return
+
+function add 2
+    push argument 0
+    pop local 0
+    push argument 1
+    pop local 1
+    add
+return
+
+function Sys.init 0
+    push constant 8
+    push constant 5
+    call sub 2
+return

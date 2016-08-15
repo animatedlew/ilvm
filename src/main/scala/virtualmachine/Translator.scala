@@ -63,6 +63,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
   }
 
+  // TODO: break these up into getConstant, storeD(reg), getD(reg)
   private def baseTemp() = {
     Writer emit
     """
@@ -103,7 +104,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     D=M
     @$index
     D=D+A   // 'A' register used for index
-    @R13    // overwrite bp
+    @R13    // overwrite bp                      --
     A=D     // sum of bp + index
     D=M     // get value @ pointer
     """
@@ -292,7 +293,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
     """
     @ARG
     A=M     // dereference
-    M=D     // replace first arg with return value
+    M=D     // replace arg with return value
     D=A     // get arg pointer
 
     @SP
@@ -562,6 +563,7 @@ class Translator(namespace: String = "global")(implicit f: PrintWriter) {
         case Call(name, argc) => call(name, argc)
         case Function(name, argc) => function(name, argc)
         case Return => ret()
+        case _ =>
       }
       cpu(ast.tail)
     }
